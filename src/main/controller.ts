@@ -31,6 +31,8 @@ export class Controller implements Api {
   private notionRunning: Promise<string> | null = null
   /** Tras alcanzar el límite gratuito de la IA, se espera antes de volver a llamarla. */
   private aiPausedUntil = 0
+  /** Las consultas a la IA van de una en una para no chocar con el límite por minuto del plan gratuito. */
+  private aiQueue: Promise<unknown> = Promise.resolve()
 
   constructor(
     private readonly store: Store,
@@ -71,6 +73,12 @@ export class Controller implements Api {
           d.settings = { ...d.settings, geminiModel: model }
         })
     }
+  }
+
+  private inAiQueue<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.aiQueue.then(fn, fn)
+    this.aiQueue = run.catch(() => undefined)
+    return run
   }
 
   private noteAiError(err: unknown): void {
@@ -245,7 +253,7 @@ export class Controller implements Api {
       const pending = mail.value.messages.filter((m) => !analysis[m.id]).slice(0, AI_BATCH)
       if (ai && pending.length > 0 && Date.now() >= this.aiPausedUntil) {
         try {
-          for (const a of await analyzeMail(ai, pending, toDateKey(new Date()))) analysis[a.id] = a
+          for (const a of await this.inAiQueue(() => analyzeMail(ai, pending, toDateKey(new Date())))) analysis[a.id] = a
         } catch (err) {
           this.noteAiError(err)
           digest.aiError = message(err)
@@ -413,7 +421,7 @@ export class Controller implements Api {
     const analysis = await this.withBusy('reflexion', async () => {
       if (ai) {
         try {
-          return await analyzeReflection(ai, stats, answers)
+          return await this.inAiQueue(() => analyzeReflection(ai, stats, answers))
         } catch (err) {
           this.noteAiError(err)
           const fallback = ruleBasedAnalysis(stats, answers)
@@ -461,7 +469,7 @@ export class Controller implements Api {
   async testAi(): Promise<string> {
     const ai = this.aiConfig(false)
     if (!ai) throw new Error(`Primero guarda la API key de ${this.data.settings.aiProvider === 'gemini' ? 'Gemini' : 'Anthropic'}.`)
-    const reply = await testKey(ai)
+    const reply = await this.inAiQueue(() => testKey(ai))
     this.aiPausedUntil = 0
     return reply
   }

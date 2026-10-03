@@ -8,7 +8,9 @@ const API = 'https://generativelanguage.googleapis.com/v1beta'
 export class GeminiError extends Error {
   constructor(
     message: string,
-    readonly status = 0
+    readonly status = 0,
+    /** Mensaje original de Google, para diagnosticar. */
+    readonly detail = ''
   ) {
     super(message)
   }
@@ -86,25 +88,31 @@ async function call(apiKey: string, path: string, body?: unknown): Promise<unkno
     if (res.status === 400 && /api key/i.test(msg)) throw new GeminiError('La API key de Gemini no es válida.', 400)
     if (res.status === 403) throw new GeminiError('La API key de Gemini no tiene permiso (¿está habilitada la API en tu proyecto?).', 403)
     if (res.status === 429) {
-      throw new GeminiError('Se alcanzó el límite gratuito de Gemini por ahora. Se reintentará más tarde.', 429)
+      throw new GeminiError('Se alcanzó el límite gratuito de Gemini por ahora. Se reintentará más tarde.', 429, msg)
     }
-    if (res.status === 404) throw new GeminiError(`El modelo no está disponible: ${msg}`, 404)
+    if (res.status === 404) throw new GeminiError(`El modelo no está disponible: ${msg}`, 404, msg)
     throw new GeminiError(`Error de Gemini (${res.status}): ${msg}`, res.status)
   }
   return json
 }
 
-/** Elige un modelo "flash" disponible para tu clave (los nombres cambian con el tiempo). */
-export async function pickFlashModel(apiKey: string): Promise<string | null> {
+/**
+ * Modelos "flash" disponibles para tu clave, del preferido al menos preferido
+ * (los nombres y las cuotas gratuitas cambian con el tiempo).
+ */
+export async function listFlashModels(apiKey: string): Promise<string[]> {
   const res = (await call(apiKey, 'models?pageSize=200')) as { models?: { name: string; supportedGenerationMethods?: string[] }[] }
   const names = (res.models ?? [])
     .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
     .map((m) => m.name.replace(/^models\//, ''))
-    .filter((n) => /flash/.test(n) && !/(image|tts|audio|live|exp|preview|thinking|embedding)/.test(n))
-  // Prefiere "flash" sobre "flash-lite" y la versión más alta.
-  names.sort((a, b) => Number(a.includes('lite')) - Number(b.includes('lite')) || b.localeCompare(a, 'en', { numeric: true }))
-  return names[0] ?? null
+    .filter((n) => /flash/.test(n) && !/(image|tts|audio|live|exp|thinking|embedding)/.test(n))
+  // Primero las versiones estables, luego "flash" antes que "flash-lite", y la versión más alta.
+  const rank = (n: string) => Number(n.includes('preview')) * 2 + Number(n.includes('lite'))
+  return names.sort((a, b) => rank(a) - rank(b) || b.localeCompare(a, 'en', { numeric: true }))
 }
+
+/** 404 = el modelo ya no existe; 429 = sin cuota para ese modelo (otro puede tenerla). */
+const shouldTryAnother = (err: unknown): err is GeminiError => err instanceof GeminiError && (err.status === 404 || err.status === 429)
 
 /**
  * Pide a Gemini una respuesta JSON que cumpla el esquema.
@@ -128,16 +136,33 @@ export async function geminiStructured<T extends z.ZodType>(
     }
   }
 
+  const generate = (m: string) => call(apiKey, `models/${encodeURIComponent(m)}:generateContent`, body) as Promise<GeminiResponse>
   let used = model
   let res: GeminiResponse
   try {
-    res = (await call(apiKey, `models/${encodeURIComponent(used)}:generateContent`, body)) as GeminiResponse
+    res = await generate(used)
   } catch (err) {
-    if (!(err instanceof GeminiError && err.status === 404)) throw err
-    const other = await pickFlashModel(apiKey)
-    if (!other || other === used) throw err
-    used = other
-    res = (await call(apiKey, `models/${encodeURIComponent(used)}:generateContent`, body)) as GeminiResponse
+    if (!shouldTryAnother(err)) throw err
+    // El modelo configurado no existe o no tiene cuota gratuita: se prueban los demás "flash".
+    let last: GeminiError = err
+    let found: GeminiResponse | null = null
+    for (const other of (await listFlashModels(apiKey)).filter((m) => m !== model).slice(0, 6)) {
+      try {
+        found = await generate(other)
+        used = other
+        break
+      } catch (e) {
+        if (!shouldTryAnother(e)) throw e
+        last = e
+      }
+    }
+    if (!found) {
+      if (last.status === 429) {
+        throw new GeminiError(`Ningún modelo gratuito de Gemini tiene cuota disponible ahora. Google dice: ${last.detail.slice(0, 220)}`, 429, last.detail)
+      }
+      throw last
+    }
+    res = found
   }
 
   if (res.promptFeedback?.blockReason) throw new GeminiError('Gemini no pudo procesar este contenido.')

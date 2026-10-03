@@ -126,11 +126,35 @@ describe('IA con Gemini', () => {
     expect(urls.at(-1)).toContain('/models/gemini-4-flash:generateContent')
   })
 
+  it('si el modelo no tiene cuota gratuita, prueba otro y lo recuerda', async () => {
+    const changed: string[] = []
+    const tried: string[] = []
+    vi.stubGlobal('fetch', async (u: string) => {
+      const url = String(u)
+      if (url.includes('/models?')) {
+        return Response.json({
+          models: ['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite', 'gemini-3-flash'].map((n) => ({ name: `models/${n}`, supportedGenerationMethods: ['generateContent'] }))
+        })
+      }
+      const m = /models\/([^:]+):/.exec(url)![1]
+      tried.push(m)
+      if (m === 'gemini-2.5-flash' || m === 'gemini-3-flash') {
+        return Response.json({ error: { message: `Quota exceeded for model ${m}, limit: 0` } }, { status: 429 })
+      }
+      return reply({ saludo: 'Hola' })
+    })
+    expect(await testKey(gemini((m) => changed.push(m)))).toBe('Hola')
+    expect(tried).toEqual(['gemini-2.5-flash', 'gemini-3-flash', 'gemini-2.5-flash-lite'])
+    expect(changed).toEqual(['gemini-2.5-flash-lite'])
+  })
+
   it('traduce los errores de Gemini', async () => {
     vi.stubGlobal('fetch', async () => Response.json({ error: { message: 'API key not valid. Please pass a valid API key.' } }, { status: 400 }))
     await expect(testKey(gemini())).rejects.toThrow('La API key de Gemini no es válida.')
-    vi.stubGlobal('fetch', async () => Response.json({ error: { message: 'quota' } }, { status: 429 }))
-    await expect(testKey(gemini())).rejects.toThrow('límite gratuito')
+    vi.stubGlobal('fetch', async (u: string) =>
+      String(u).includes('/models?') ? Response.json({ models: [] }) : Response.json({ error: { message: 'Quota exceeded, limit: 0' } }, { status: 429 })
+    )
+    await expect(testKey(gemini())).rejects.toThrow('Google dice: Quota exceeded, limit: 0')
     vi.stubGlobal('fetch', async () => reply({}, 'SAFETY'))
     await expect(testKey(gemini())).rejects.toThrow('no pudo procesar')
     vi.stubGlobal('fetch', async () => reply({}, 'MAX_TOKENS'))
