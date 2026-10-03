@@ -88,16 +88,26 @@ export function unreadFromTitle(title: string): number {
 }
 
 /** Dominios en los que se permite abrir ventanas emergentes de inicio de sesión. */
-export const AUTH_HOSTS = [
+export const AUTH_DOMAINS = [
   'accounts.google.com',
-  'login.microsoftonline.com',
-  'login.live.com',
+  'microsoftonline.com',
+  'live.com',
   'login.microsoft.com',
-  'www.facebook.com',
-  'www.notion.so',
-  'www.canva.com',
-  'appleid.apple.com'
+  'appleid.apple.com',
+  'facebook.com',
+  'instagram.com',
+  'notion.so',
+  'notion.com',
+  'canva.com',
+  'auth.openai.com',
+  'whatsapp.com'
 ]
+
+/** true si el dominio (o uno de sus subdominios) es de inicio de sesión. */
+export function isAuthHost(host: string): boolean {
+  const h = host.toLowerCase()
+  return AUTH_DOMAINS.some((d) => h === d || h.endsWith(`.${d}`))
+}
 
 export const AI_MODELS: { id: string; label: string; effort: boolean; fallback: boolean }[] = [
   { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (más preciso)', effort: true, fallback: true },

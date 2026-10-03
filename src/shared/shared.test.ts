@@ -222,3 +222,15 @@ describe('sincronización con Notion', () => {
     expect(parseNotionId('no es un id')).toBeNull()
   })
 })
+
+describe('ventanas de inicio de sesión', () => {
+  it('reconoce dominios y subdominios de inicio de sesión', async () => {
+    const { isAuthHost } = await import('./services')
+    expect(isAuthHost('accounts.google.com')).toBe(true)
+    expect(isAuthHost('login.microsoftonline.com')).toBe(true)
+    expect(isAuthHost('www.notion.so')).toBe(true)
+    expect(isAuthHost('notion.so')).toBe(true)
+    expect(isAuthHost('evilnotion.so')).toBe(false)
+    expect(isAuthHost('example.com')).toBe(false)
+  })
+})

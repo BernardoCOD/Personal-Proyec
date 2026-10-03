@@ -4,7 +4,7 @@ import iconPath from '../../resources/icon.png?asset'
 import trayPath from '../../resources/tray.png?asset'
 import type { Api, ApiMethod, InvokeResult } from '@shared/api'
 import type { Settings } from '@shared/types'
-import { AUTH_HOSTS } from '@shared/services'
+import { isAuthHost } from '@shared/services'
 import { Store } from './store'
 import { Secrets } from './secrets'
 import { Notifier } from './notify'
@@ -129,15 +129,17 @@ function hardenWebviews(): void {
     })
 
     if (contents.getType() === 'webview') {
-      contents.setWindowOpenHandler(({ url }) => {
+      contents.setWindowOpenHandler(({ url, disposition }) => {
         let host = ''
         try {
-          host = new URL(url).hostname
+          host = url === 'about:blank' ? '' : new URL(url).hostname
         } catch {
           return { action: 'deny' }
         }
-        // Ventanas de inicio de sesión: se abren dentro de la app con la misma sesión.
-        if (AUTH_HOSTS.includes(host)) {
+        // Ventanas de inicio de sesión (Google, Microsoft, Apple, Notion...): se abren dentro
+        // de la app con la misma sesión. Muchas empiezan vacías (about:blank) o se abren como
+        // ventana emergente con tamaño propio ("new-window").
+        if (url === 'about:blank' || isAuthHost(host) || disposition === 'new-window') {
           return { action: 'allow', overrideBrowserWindowOptions: { width: 520, height: 720, autoHideMenuBar: true } }
         }
         if (/^https?:\/\//.test(url)) void shell.openExternal(url)

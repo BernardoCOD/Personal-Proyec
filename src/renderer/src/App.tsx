@@ -273,7 +273,8 @@ function Shell({ snap }: { snap: Snapshot }) {
                   ref={attachWeb(w.key) as unknown as React.Ref<HTMLElement>}
                   src={w.src}
                   partition={w.partition}
-                  allowpopups
+                  // Debe ir como texto: con `true` React no escribe el atributo y se bloquean los inicios de sesión.
+                  {...({ allowpopups: 'true' } as object)}
                   className={w.key === activeWebKey ? '' : 'hidden'}
                 />
               ))}
