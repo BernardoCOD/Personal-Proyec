@@ -161,13 +161,20 @@ export interface Reflection {
 
 // ---------- Ajustes ----------
 
+export type AiProvider = 'gemini' | 'anthropic'
+
 export interface Settings {
   googleClientId: string
   microsoftClientId: string
   /** "common" acepta cuentas personales y de organizaciones (universidad). */
   microsoftTenant: string
   aiEnabled: boolean
+  /** Gemini tiene un nivel gratuito; Claude es de pago. */
+  aiProvider: AiProvider
+  /** Modelo de Claude. */
   aiModel: string
+  /** Modelo de Gemini. */
+  geminiModel: string
   desktopNotifications: boolean
   phoneNotifications: boolean
   ntfyServer: string
@@ -189,6 +196,7 @@ export interface Settings {
 /** Qué secretos están configurados (los valores nunca salen del proceso principal). */
 export interface SecretStatus {
   anthropicApiKey: boolean
+  geminiApiKey: boolean
   googleClientSecret: boolean
   notionToken: boolean
   encryptionAvailable: boolean

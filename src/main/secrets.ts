@@ -13,12 +13,13 @@ export interface OAuthTokens {
 
 interface SecretData {
   anthropicApiKey: string
+  geminiApiKey: string
   googleClientSecret: string
   notionToken: string
   tokens: Record<string, OAuthTokens>
 }
 
-const empty = (): SecretData => ({ anthropicApiKey: '', googleClientSecret: '', notionToken: '', tokens: {} })
+const empty = (): SecretData => ({ anthropicApiKey: '', geminiApiKey: '', googleClientSecret: '', notionToken: '', tokens: {} })
 
 /**
  * Claves y tokens cifrados con el sistema operativo (DPAPI en Windows):
@@ -76,6 +77,7 @@ export class Secrets {
   status(): SecretStatus {
     return {
       anthropicApiKey: Boolean(this.data.anthropicApiKey),
+      geminiApiKey: Boolean(this.data.geminiApiKey),
       googleClientSecret: Boolean(this.data.googleClientSecret),
       notionToken: Boolean(this.data.notionToken),
       encryptionAvailable: safeStorage.isEncryptionAvailable()

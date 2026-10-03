@@ -3,7 +3,7 @@
 Aplicación de escritorio para Windows que reúne en una sola ventana tus correos, tus apps y tu organización personal:
 
 - **Inicio (dashboard):** tareas de hoy, correos por enviar, correos importantes por atender, hábitos del día y próximos eventos.
-- **Correo con resumen:** al tocar el ícono ves tus correos clasificados por la IA en **📌 Por hacer** y **📭 Sin acción**, con la categoría (laboral, educativo, **estatal**, finanzas…), la importancia, qué tienes que hacer y el plazo.
+- **Correo con resumen:** al tocar el ícono ves tus correos clasificados por la IA (Google Gemini gratis, o Claude) en **📌 Por hacer** y **📭 Sin acción**, con la categoría (laboral, educativo, **estatal**, finanzas…), la importancia, qué tienes que hacer y el plazo.
 - **Cambio de cuenta:** tus 4 Gmail y el correo de la universidad (Outlook / Microsoft 365), cada uno con su nombre (Estudios, Trabajo, Juegos…). Cada cuenta tiene su propia sesión, así que puedes tener todas abiertas a la vez.
 - **Apps integradas:** Gmail, Outlook, Google Calendar, Drive, OneDrive, Notion, Canva, WhatsApp, Instagram y Facebook se abren dentro de la app.
 - **Tareas y correos por enviar:** recordatorios con hora; el botón **Redactar** abre Gmail u Outlook con el destinatario y el asunto listos; marca la casilla para tacharlo.
@@ -27,7 +27,7 @@ Todo se explica paso a paso dentro de **Ajustes**. En resumen:
 |---|---|---|
 | Client ID y secreto de Google | Leer Gmail y Google Calendar | console.cloud.google.com (cliente “App de escritorio”) |
 | Id. de aplicación de Microsoft | Leer el correo de la universidad | entra.microsoft.com (registro de aplicación) |
-| API key de Anthropic | Resúmenes con IA | console.anthropic.com |
+| API key de Gemini (gratis) o de Anthropic | Resúmenes con IA | aistudio.google.com / console.anthropic.com |
 | App **ntfy** en el celular | Avisos en el celular | Play Store / App Store |
 | Secreto de integración de Notion | Tareas en el celular | notion.so/profile/integrations |
 
@@ -41,7 +41,7 @@ Sin configurar nada ya funcionan las tareas, los hábitos y todas las apps web (
 
 ## Privacidad
 
-Los datos se guardan solo en tu computadora (`%APPDATA%\Centro de Mando`). Las claves y permisos se cifran con Windows. A la IA solo se envían el remitente, el asunto y las primeras líneas de los correos nuevos.
+Los datos se guardan solo en tu computadora (`%APPDATA%\Centro de Mando`). Las claves y permisos se cifran con Windows. A la IA solo se envían el remitente, el asunto y las primeras líneas de los correos nuevos. En el plan gratuito de Gemini, Google puede usar ese contenido para mejorar sus productos.
 
 ## Desarrollo
 

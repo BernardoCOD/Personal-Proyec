@@ -14,7 +14,8 @@ import type { Secrets } from './secrets'
 import type { Notifier } from './notify'
 import { authorize, OAuthError, refresh } from './oauth'
 import { ApiError, clientFor } from './providers'
-import { analyzeMail, analyzeReflection, testKey } from './ai'
+import { analyzeMail, analyzeReflection, testKey, type AiConfig } from './ai'
+import { GeminiError } from './gemini'
 import { createDatabase, syncTasks } from './notion'
 
 const AI_BATCH = 25
@@ -28,6 +29,8 @@ export class Controller implements Api {
   private lastRefresh = new Map<string, number>()
   private lastNotionSync = 0
   private notionRunning: Promise<string> | null = null
+  /** Tras alcanzar el límite gratuito de la IA, se espera antes de volver a llamarla. */
+  private aiPausedUntil = 0
 
   constructor(
     private readonly store: Store,
@@ -50,6 +53,28 @@ export class Controller implements Api {
       this.busy.delete(key)
       this.emit()
     }
+  }
+
+  /** Configuración de la IA elegida en Ajustes, o null si falta la clave. */
+  private aiConfig(requireEnabled = true): AiConfig | null {
+    const s = this.data.settings
+    if (requireEnabled && !s.aiEnabled) return null
+    const gemini = s.aiProvider === 'gemini'
+    const apiKey = this.secrets.get(gemini ? 'geminiApiKey' : 'anthropicApiKey')
+    if (!apiKey) return null
+    return {
+      provider: s.aiProvider,
+      apiKey,
+      model: gemini ? s.geminiModel : s.aiModel,
+      onModelChange: (model) =>
+        this.store.update((d) => {
+          d.settings = { ...d.settings, geminiModel: model }
+        })
+    }
+  }
+
+  private noteAiError(err: unknown): void {
+    if (err instanceof GeminiError && err.status === 429) this.aiPausedUntil = Date.now() + 60 * 60_000
   }
 
   snapshotSync(): Snapshot {
@@ -216,13 +241,13 @@ export class Controller implements Api {
         analysis
       }
 
-      const s = this.data.settings
-      const apiKey = this.secrets.get('anthropicApiKey')
+      const ai = this.aiConfig()
       const pending = mail.value.messages.filter((m) => !analysis[m.id]).slice(0, AI_BATCH)
-      if (s.aiEnabled && apiKey && pending.length > 0) {
+      if (ai && pending.length > 0 && Date.now() >= this.aiPausedUntil) {
         try {
-          for (const a of await analyzeMail(apiKey, s.aiModel, pending, toDateKey(new Date()))) analysis[a.id] = a
+          for (const a of await analyzeMail(ai, pending, toDateKey(new Date()))) analysis[a.id] = a
         } catch (err) {
+          this.noteAiError(err)
           digest.aiError = message(err)
         }
       }
@@ -383,14 +408,14 @@ export class Controller implements Api {
     if (!m) throw new Error('Mes no válido.')
     const stats = monthStats(this.data.habits, this.data.habitLog, Number(m[1]), Number(m[2]), toDateKey(new Date()))
     if (stats.countedDays === 0) throw new Error('Todavía no hay días registrados en ese mes.')
-    const s = this.data.settings
-    const apiKey = this.secrets.get('anthropicApiKey')
+    const ai = this.aiConfig()
 
     const analysis = await this.withBusy('reflexion', async () => {
-      if (s.aiEnabled && apiKey) {
+      if (ai) {
         try {
-          return await analyzeReflection(apiKey, s.aiModel, stats, answers)
+          return await analyzeReflection(ai, stats, answers)
         } catch (err) {
+          this.noteAiError(err)
           const fallback = ruleBasedAnalysis(stats, answers)
           return { ...fallback, resumen: `${fallback.resumen} (La IA no respondió: ${message(err)})` }
         }
@@ -434,7 +459,11 @@ export class Controller implements Api {
   }
 
   async testAi(): Promise<string> {
-    return testKey(this.secrets.get('anthropicApiKey'), this.data.settings.aiModel)
+    const ai = this.aiConfig(false)
+    if (!ai) throw new Error(`Primero guarda la API key de ${this.data.settings.aiProvider === 'gemini' ? 'Gemini' : 'Anthropic'}.`)
+    const reply = await testKey(ai)
+    this.aiPausedUntil = 0
+    return reply
   }
 
   async testNotification(): Promise<void> {

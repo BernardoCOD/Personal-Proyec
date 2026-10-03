@@ -97,7 +97,7 @@ function demoData(): AppData {
       a2: { accountId: 'a2', fetchedAt: iso(0), events: [{ id: 'e2', title: 'Entrevista Andina SAC', start: new Date(now.getTime() + 50 * 3_600_000).toISOString(), end: new Date(now.getTime() + 51 * 3_600_000).toISOString(), allDay: false, location: '', link: '' }] }
     },
     settings: {
-      googleClientId: '', microsoftClientId: '', microsoftTenant: 'common', aiEnabled: true, aiModel: 'claude-opus-5-5',
+      googleClientId: '', microsoftClientId: '', microsoftTenant: 'common', aiEnabled: true, aiProvider: 'gemini', aiModel: 'claude-opus-5-5', geminiModel: 'gemini-2.5-flash',
       desktopNotifications: true, phoneNotifications: false, ntfyServer: 'https://ntfy.sh', ntfyTopic: 'cdm-demo1234abcd', launchAtStartup: true,
       closeToTray: true, mailRefreshMinutes: 15, dailyDigestTime: '08:00', habitReminderTime: '21:00', notionEnabled: false, notionDatabaseId: '',
       backgroundMessaging: false, theme: 'sistema'
@@ -115,7 +115,7 @@ export function installMockBridge(): void {
   const listeners = new Set<(s: Snapshot) => void>()
   const snapshot = (): Snapshot => ({
     data,
-    secrets: { anthropicApiKey: true, googleClientSecret: false, notionToken: false, encryptionAvailable: true },
+    secrets: { anthropicApiKey: false, geminiApiKey: true, googleClientSecret: false, notionToken: false, encryptionAvailable: true },
     badges,
     busy: []
   })

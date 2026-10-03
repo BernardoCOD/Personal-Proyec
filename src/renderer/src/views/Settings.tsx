@@ -15,8 +15,8 @@ export function SettingsView() {
       <NotionSection />
       <GeneralSection />
       <p className="small muted">
-        Tus datos se guardan solo en esta computadora. Las claves y permisos se cifran con Windows. Nada se envía a terceros salvo lo que activas aquí (Anthropic
-        para los resúmenes, Notion y ntfy).
+        Tus datos se guardan solo en esta computadora. Las claves y permisos se cifran con Windows. Nada se envía a terceros salvo lo que activas aquí (Gemini o
+        Anthropic para los resúmenes, Notion y ntfy).
       </p>
     </div>
   )
@@ -318,27 +318,84 @@ function AiSection() {
   const { snap, run } = useApp()
   const { s, save } = useSettings()
   const [testing, setTesting] = useState(false)
+  const gemini = s.aiProvider === 'gemini'
+  const hasKey = gemini ? snap.secrets.geminiApiKey : snap.secrets.anthropicApiKey
   return (
     <section className="card stack">
       <h2>Inteligencia artificial (resúmenes)</h2>
       <SettingToggle label="Usar IA para resumir y clasificar correos y analizar hábitos" field="aiEnabled" hint="sin IA se usa una clasificación automática más simple" />
-      <div className="grid-2">
-        <SecretField label="API key de Anthropic" name="anthropicApiKey" placeholder="sk-ant-…" />
-        <label className="field">
-          Modelo
-          <select value={s.aiModel} onChange={(e) => void save({ aiModel: e.target.value })}>
-            {AI_MODELS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="tabs" style={{ width: 'fit-content' }}>
+        <button className={gemini ? 'active' : ''} onClick={() => void save({ aiProvider: 'gemini' })}>
+          Google Gemini (gratis)
+        </button>
+        <button className={!gemini ? 'active' : ''} onClick={() => void save({ aiProvider: 'anthropic' })}>
+          Claude (de pago)
+        </button>
       </div>
+
+      {gemini ? (
+        <>
+          <div className="grid-2">
+            <SecretField label="API key de Gemini" name="geminiApiKey" placeholder="AIza…" />
+            <SettingText label="Modelo de Gemini" field="geminiModel" placeholder="gemini-2.5-flash" />
+          </div>
+          <details className="guide" open={!snap.secrets.geminiApiKey}>
+            <summary>Cómo obtener la API key gratuita de Gemini</summary>
+            <ol>
+              <li>
+                Entra a <strong>aistudio.google.com</strong> con tu cuenta de Google.
+              </li>
+              <li>
+                Pulsa <strong>Get API key → Crear clave de API</strong>, copia la clave (empieza con <code>AIza</code>) y pégala arriba. No hace falta tarjeta.
+              </li>
+              <li>
+                Pulsa <strong>Probar</strong>. Si el modelo indicado ya no existe, la app elige sola otro modelo “flash” disponible.
+              </li>
+            </ol>
+          </details>
+          <Alert kind="info">
+            <strong>Ten en cuenta:</strong> en el plan gratuito, Google puede usar lo que envías para mejorar sus productos y hay un límite de consultas por
+            día. Solo se envían remitente, asunto y primeras líneas de los correos nuevos. Si se alcanza el límite, la app usa la clasificación automática y
+            reintenta en una hora.
+          </Alert>
+        </>
+      ) : (
+        <>
+          <div className="grid-2">
+            <SecretField label="API key de Anthropic" name="anthropicApiKey" placeholder="sk-ant-…" />
+            <label className="field">
+              Modelo
+              <select value={s.aiModel} onChange={(e) => void save({ aiModel: e.target.value })}>
+                {AI_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <details className="guide">
+            <summary>Cómo obtener la API key de Anthropic y cuánto cuesta</summary>
+            <ol>
+              <li>
+                Entra a <strong>console.anthropic.com</strong>, crea una cuenta y agrega saldo en <em>Billing</em> (por ejemplo 5 USD).
+              </li>
+              <li>
+                En <em>API Keys → Create Key</em>, copia la clave (empieza con <code>sk-ant-</code>) y pégala arriba.
+              </li>
+              <li>
+                Solo se analizan los correos <strong>nuevos</strong>. Con unos 50 correos nuevos al día el costo aproximado es de 4–5 USD al mes con Opus, y
+                bastante menos con Sonnet o Haiku.
+              </li>
+            </ol>
+          </details>
+        </>
+      )}
+
       <div className="row">
         <button
           className="btn"
-          disabled={!snap.secrets.anthropicApiKey || testing}
+          disabled={!hasKey || testing}
           onClick={async () => {
             setTesting(true)
             const r = await run(api.testAi())
@@ -349,21 +406,6 @@ function AiSection() {
           {testing && <Spinner />} Probar
         </button>
       </div>
-      <details className="guide">
-        <summary>Cómo obtener la API key y cuánto cuesta</summary>
-        <ol>
-          <li>
-            Entra a <strong>console.anthropic.com</strong>, crea una cuenta y agrega saldo en <em>Billing</em> (por ejemplo 5 USD).
-          </li>
-          <li>
-            En <em>API Keys → Create Key</em>, copia la clave (empieza con <code>sk-ant-</code>) y pégala arriba.
-          </li>
-          <li>
-            Solo se analizan los correos <strong>nuevos</strong> (remitente, asunto y las primeras líneas). Como referencia, con unos 50 correos nuevos al día el
-            costo aproximado es de 4–5 USD al mes con Opus, y bastante menos con Sonnet o Haiku. Puedes ver tu consumo en la consola de Anthropic.
-          </li>
-        </ol>
-      </details>
     </section>
   )
 }
@@ -382,12 +424,21 @@ function NotificationsSection() {
         <summary>Cómo recibir los avisos en el celular</summary>
         <ol>
           <li>
-            Instala la app gratuita <strong>ntfy</strong> (Play Store o App Store).
+            Instala la app gratuita <strong>ntfy</strong> (ícono verde con una campana): en Android desde Play Store, en iPhone desde App Store. Su autor es
+            Philipp Heckel.
           </li>
           <li>
-            Ábrela, toca <strong>+</strong> y suscríbete al tema <CopyText text={s.ntfyTopic} /> (servidor: <code>{s.ntfyServer}</code>).
+            Ábrela y acepta el permiso de <strong>notificaciones</strong>.
           </li>
-          <li>Activa arriba “Notificaciones al celular” y pulsa “Probar”.</li>
+          <li>
+            Toca <strong>+</strong> (Suscribirse a un tema) y escribe exactamente este tema: <CopyText text={s.ntfyTopic} />. Deja el servidor que viene por defecto y toca{' '}
+            <strong>Suscribirse</strong>.
+          </li>
+          <li>
+            En Android, activa <strong>Entrega instantánea</strong> en ese tema y, si el celular lo pide, permite que ntfy funcione sin restricción de batería
+            (si no, los avisos pueden llegar con retraso).
+          </li>
+          <li>Aquí, activa “Notificaciones al celular” y pulsa <strong>Probar notificaciones</strong>: debe llegarte un aviso en segundos.</li>
           <li>
             El tema funciona como una contraseña: no lo compartas. Se envían solo títulos de tareas, recordatorios y asuntos de correos importantes.
           </li>

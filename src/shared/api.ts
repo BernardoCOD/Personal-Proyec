@@ -1,6 +1,6 @@
 import type { Account, Habit, Provider, QuestionAnswer, Reflection, Settings, Snapshot, Task } from './types'
 
-export type SecretName = 'anthropicApiKey' | 'googleClientSecret' | 'notionToken'
+export type SecretName = 'anthropicApiKey' | 'geminiApiKey' | 'googleClientSecret' | 'notionToken'
 
 export type TaskInput = Partial<Omit<Task, 'createdAt' | 'updatedAt' | 'completedAt' | 'notion'>> & { title: string }
 

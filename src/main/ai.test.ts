@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { analyzeMail, testKey } from './ai'
+import { analyzeMail, testKey, type AiConfig } from './ai'
 import type { MailMessage } from '@shared/types'
 
 // Se simula la API de Anthropic para revisar la forma de la petición y la lectura de la respuesta.
@@ -26,7 +26,9 @@ const mail = (id: string): MailMessage => ({
 
 afterEach(() => vi.unstubAllGlobals())
 
-describe('IA', () => {
+const claude = (model: string): AiConfig => ({ provider: 'anthropic', apiKey: 'sk-test', model })
+
+describe('IA con Claude', () => {
   it('pide JSON estructurado con fallback y descarta ids desconocidos', async () => {
     const calls: { url: string; body: Record<string, unknown>; headers: Headers }[] = []
     vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
@@ -38,7 +40,7 @@ describe('IA', () => {
         ]
       })
     })
-    const out = await analyzeMail('sk-test', 'claude-opus-5-5', [mail('m1')], '2026-10-02')
+    const out = await analyzeMail(claude('claude-opus-5-5'), [mail('m1')], '2026-10-02')
     expect(out).toEqual([
       { id: 'm1', category: 'estatal', importance: 'alta', needsAction: true, action: 'Responder', deadline: '2026-10-09', summary: 'Plazo.', source: 'ia' }
     ])
@@ -57,18 +59,81 @@ describe('IA', () => {
       body = JSON.parse(String(init.body))
       return fakeResponse({ saludo: 'Hola' })
     })
-    expect(await testKey('sk-test', 'claude-haiku-4-5')).toBe('Hola')
+    expect(await testKey({ ...claude('claude-haiku-4-5') })).toBe('Hola')
     expect(body.fallbacks).toBeUndefined()
     expect((body.output_config as Record<string, unknown>).effort).toBeUndefined()
   })
 
   it('traduce errores de la API a mensajes en español', async () => {
     vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }), { status: 401, headers: { 'content-type': 'application/json' } }))
-    await expect(testKey('sk-malo', 'claude-opus-5-5')).rejects.toThrow('La API key de Anthropic no es válida.')
+    await expect(testKey({ ...claude('claude-opus-5-5'), apiKey: 'sk-malo' })).rejects.toThrow('La API key de Anthropic no es válida.')
   })
 
   it('avisa si la respuesta fue rechazada', async () => {
     vi.stubGlobal('fetch', async () => fakeResponse({}, 'refusal'))
-    await expect(testKey('sk-test', 'claude-opus-5-5')).rejects.toThrow('Claude no pudo procesar este contenido.')
+    await expect(testKey(claude('claude-opus-5-5'))).rejects.toThrow('Claude no pudo procesar este contenido.')
+  })
+})
+
+describe('IA con Gemini', () => {
+  const gemini = (onModelChange?: (m: string) => void): AiConfig => ({ provider: 'gemini', apiKey: 'AIza-test', model: 'gemini-2.5-flash', onModelChange })
+  const reply = (json: unknown, finishReason = 'STOP') =>
+    Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(json) }] }, finishReason }] })
+
+  it('envía un esquema JSON válido para Gemini y lee la respuesta', async () => {
+    let body: { generationConfig: { responseMimeType: string; responseSchema: Record<string, unknown> } } | null = null
+    let url = ''
+    let key = ''
+    vi.stubGlobal('fetch', async (u: string, init: RequestInit) => {
+      url = String(u)
+      key = new Headers(init.headers).get('x-goog-api-key') ?? ''
+      body = JSON.parse(String(init.body))
+      return reply({
+        correos: [{ id: 'm1', categoria: 'estatal', importancia: 'alta', requiere_accion: true, accion: 'Responder', fecha_limite: null, resumen: 'Plazo.' }]
+      })
+    })
+    const out = await analyzeMail(gemini(), [mail('m1')], '2026-10-02')
+    expect(out[0]).toMatchObject({ id: 'm1', category: 'estatal', needsAction: true, deadline: null, source: 'ia' })
+    expect(url).toContain('/models/gemini-2.5-flash:generateContent')
+    expect(key).toBe('AIza-test')
+    expect(body!.generationConfig.responseMimeType).toBe('application/json')
+    const item = (body!.generationConfig.responseSchema as { properties: { correos: { items: { properties: Record<string, { type: string; enum?: string[]; nullable?: boolean }> } } } }).properties.correos.items.properties
+    expect(item.categoria).toMatchObject({ type: 'STRING', enum: expect.arrayContaining(['estatal']) })
+    expect(item.fecha_limite).toEqual({ type: 'STRING', nullable: true })
+    expect(item.requiere_accion.type).toBe('BOOLEAN')
+  })
+
+  it('si el modelo ya no existe, elige otro "flash" y lo recuerda', async () => {
+    const urls: string[] = []
+    const changed: string[] = []
+    vi.stubGlobal('fetch', async (u: string) => {
+      urls.push(String(u))
+      if (String(u).includes('gemini-2.5-flash:')) return Response.json({ error: { message: 'models/gemini-2.5-flash is not found' } }, { status: 404 })
+      if (String(u).includes('/models?')) {
+        return Response.json({
+          models: [
+            { name: 'models/gemini-4-flash-lite', supportedGenerationMethods: ['generateContent'] },
+            { name: 'models/gemini-4-flash', supportedGenerationMethods: ['generateContent'] },
+            { name: 'models/gemini-4-flash-image', supportedGenerationMethods: ['generateContent'] },
+            { name: 'models/gemini-4-pro', supportedGenerationMethods: ['generateContent'] }
+          ]
+        })
+      }
+      return reply({ saludo: 'Hola' })
+    })
+    expect(await testKey(gemini((m) => changed.push(m)))).toBe('Hola')
+    expect(changed).toEqual(['gemini-4-flash'])
+    expect(urls.at(-1)).toContain('/models/gemini-4-flash:generateContent')
+  })
+
+  it('traduce los errores de Gemini', async () => {
+    vi.stubGlobal('fetch', async () => Response.json({ error: { message: 'API key not valid. Please pass a valid API key.' } }, { status: 400 }))
+    await expect(testKey(gemini())).rejects.toThrow('La API key de Gemini no es válida.')
+    vi.stubGlobal('fetch', async () => Response.json({ error: { message: 'quota' } }, { status: 429 }))
+    await expect(testKey(gemini())).rejects.toThrow('límite gratuito')
+    vi.stubGlobal('fetch', async () => reply({}, 'SAFETY'))
+    await expect(testKey(gemini())).rejects.toThrow('no pudo procesar')
+    vi.stubGlobal('fetch', async () => reply({}, 'MAX_TOKENS'))
+    await expect(testKey(gemini())).rejects.toThrow('incompleta')
   })
 })
