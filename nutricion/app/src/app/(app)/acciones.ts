@@ -55,10 +55,10 @@ export async function buscarAlimentos(texto: string): Promise<AlimentoBuscado[]>
   const q = String(texto ?? '').trim().slice(0, 60)
   if (q.length < 2) return []
   const { supabase } = await datosUsuario()
-  const patron = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
-  const { data, error } = await supabase.from('alimentos').select(COLUMNAS_ALIMENTO).ilike('nombre', patron).order('nombre').limit(25)
+  // Sin tildes, varias palabras y ordenado por relevancia (ver migración de búsqueda).
+  const { data, error } = await supabase.rpc('buscar_alimentos', { texto: q, limite: 25 })
   if (error) throw new Error(error.message)
-  return (data ?? []).map(normalizarAlimento)
+  return ((data ?? []) as Record<string, unknown>[]).map(normalizarAlimento)
 }
 
 /** Alimentos que más usé últimamente, para registrarlos con un toque. */

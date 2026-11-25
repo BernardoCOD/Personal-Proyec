@@ -206,7 +206,10 @@ function Buscador({ onElegir, recientes }: { onElegir: (a: AlimentoBuscado) => v
             <li key={a.id}>
               <button type="button" className="flex w-full items-center gap-2 py-2 text-left text-sm" onClick={() => onElegir(a)}>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate">{a.nombre}{a.marca && <span className="text-suave"> · {a.marca}</span>}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate">{a.nombre}{a.marca && <span className="text-suave"> · {a.marca}</span>}</span>
+                    <Fuente fuente={a.fuente} />
+                  </span>
                   <span className="text-xs text-suave">{fmt(a.calorias)} kcal · P {fmt(a.proteina_g, 1)} · C {fmt(a.carbohidratos_g, 1)} · G {fmt(a.grasa_g, 1)} por 100 g</span>
                 </span>
                 <span className="text-lg text-acento" aria-hidden>+</span>
@@ -216,6 +219,16 @@ function Buscador({ onElegir, recientes }: { onElegir: (a: AlimentoBuscado) => v
         </ul>
       )}
     </section>
+  )
+}
+
+const FUENTES: Record<string, string> = { cenan: 'CENAN', usda: 'USDA', usuario: 'Mío', receta: 'Receta', etiqueta: 'Etiqueta' }
+
+function Fuente({ fuente }: { fuente: string }) {
+  return (
+    <span className="shrink-0 rounded-md border border-borde px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-suave">
+      {FUENTES[fuente] ?? fuente}
+    </span>
   )
 }
 

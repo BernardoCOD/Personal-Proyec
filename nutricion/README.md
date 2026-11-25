@@ -8,7 +8,7 @@ Este proyecto es independiente del **Centro de Mando** que está en la raíz del
 |---|---|
 | 1. Base de datos (Supabase) | ✅ Esquema listo: `supabase/migrations/` |
 | 2. App web instalable | ✅ Lista: `app/` |
-| 3. Base de alimentos (CENAN + USDA) | Pendiente |
+| 3. Base de alimentos (CENAN + USDA) | ✅ Lista: `datos/` y la migración de búsqueda |
 | 4. Conector MCP para Claude | Pendiente |
 | 5. Objetivos y recomendaciones | Pendiente |
 | 6. Hacerla pública | Pendiente |
@@ -86,7 +86,7 @@ App web instalable (PWA) hecha con Next.js 16, React 19 y Tailwind CSS 4.
 
 Las macros siempre se calculan en el servidor a partir de la base de datos; no se confía en lo que envía el navegador. Todas las consultas usan la sesión del usuario, así que RLS se aplica siempre.
 
-> La base de alimentos está vacía hasta la **Fase 3**. Mientras tanto, usa “Alimento que no está en la lista” y marca **Guardar en mis alimentos**: la próxima vez aparecerá en el buscador.
+> Si un alimento no está en el catálogo, usa “Alimento que no está en la lista” y marca **Guardar en mis alimentos**: la próxima vez aparecerá primero en el buscador.
 
 ### Probarla en tu computadora
 
@@ -117,8 +117,30 @@ Otros comandos: `npm test` (pruebas de los cálculos), `npm run lint`, `npm run 
 
 **Entregable de la Fase 2:** la app instalada en el celular y la PC, mostrando tus datos. ✅
 
-## Próximo paso: Fase 3
+## Fase 3 – Base de alimentos
+
+- **CENAN (Perú), edición 2025:** 1668 alimentos, incluidos ~440 platos preparados (lomo saltado, ají de gallina, arroz con pollo…), y medidas caseras oficiales (taza, cucharada, unidad mediana…) para 59 alimentos de uso diario.
+- **USDA:** 8167 alimentos en inglés. Sirven para productos importados y para que Claude busque en inglés en la Fase 4.
+- **Búsqueda:** sin tildes ni mayúsculas (“platano” encuentra “Plátano”) y con varias palabras en cualquier orden (“pollo arroz”). Primero aparecen tus alimentos, luego los de CENAN y al final los de USDA. Dentro de cada grupo van primero los que tienen medidas caseras.
+
+### Cómo cargarlo (una sola vez)
+
+En Supabase, abre **SQL Editor**. Para cada archivo, en este orden: pega todo su contenido y pulsa **Run**.
+
+1. `supabase/migrations/20261125000100_busqueda_alimentos.sql` (activa la búsqueda nueva).
+2. `catalogo_cenan.sql`: te lo envié aparte. No está en el repositorio porque la licencia de CENAN (CC BY-NC-ND) no permite publicar los datos modificados.
+3. `datos/sql/catalogo_usda_1_de_4.sql` … `catalogo_usda_4_de_4.sql`.
+
+Para probarlo, en la app ve a **Registrar → Comida** y busca “arroz”: debería salir “Arroz pilado o pulido cocido” con su taza de 193 g.
+
+Los detalles y cómo regenerar los datos están en [`datos/README.md`](datos/README.md).
+
+**Entregable de la Fase 3:** buscador de alimentos con valores confiables. ✅
+
+> **Para la Fase 6 (hacerla pública):** los datos de CENAN son solo para uso **no comercial**. Si cobras por la app, hay que pedir permiso al INS o usar solo USDA.
+
+## Próximo paso: Fase 4
 
 Prompt sugerido para Claude Code:
 
-> Vamos con la Fase 3 del plan: cargar en la tabla `alimentos` las Tablas Peruanas de Composición de Alimentos (CENAN–INS) con sus porciones caseras, completar con USDA FoodData Central y agregar platos peruanos comunes como recetas.
+> Vamos con la Fase 4 del plan: el conector MCP para Claude con OAuth, que use la función `buscar_alimentos` y las tablas de Supabase para registrar comidas, actividad y peso, y mostrar el resumen del día.

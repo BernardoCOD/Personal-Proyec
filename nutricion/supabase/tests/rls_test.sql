@@ -50,6 +50,24 @@ do $$ begin
     'el resumen diario suma las calorías del día (hora de Lima)';
 end $$;
 
+-- Búsqueda (Fase 3): sin tildes, varias palabras, respeta RLS y orden.
+reset role;
+insert into public.alimentos (usuario_id, nombre, calorias, fuente, codigo_fuente) values
+  (null, 'Plátano de seda', 74, 'cenan', 'C71'),
+  (null, 'Arroz con pollo', 150, 'cenan', 'SS20'),
+  (null, 'Bananas, raw', 89, 'usda', '173944');
+set role authenticated;
+do $$ begin perform set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false); end $$;
+do $$ begin
+  assert (select count(*) from public.buscar_alimentos('platano')) = 1, 'sin tildes: platano -> Plátano';
+  assert (select nombre from public.buscar_alimentos('POLLO arroz')) = 'Arroz con pollo', 'varias palabras en cualquier orden';
+  assert (select nombre from public.buscar_alimentos('batido')) = 'Batido de Ana', 'encuentra mis alimentos';
+  assert (select porciones from public.buscar_alimentos('arroz blanco')) = '[{"nombre": "taza", "gramos": 160.00}]'::jsonb, 'trae las porciones';
+  assert (select count(*) from public.buscar_alimentos('a')) = 0, 'mínimo 2 letras';
+  assert (select count(*) from public.buscar_alimentos('100%')) = 0, 'el % se busca literal';
+  assert (select fuente from public.buscar_alimentos('a', 5) limit 1) is null, 'sin resultados con 1 letra';
+end $$;
+
 -- Ana no puede modificar el catálogo público.
 do $$ begin
   update public.alimentos set calorias = 1 where id = 'aaaaaaaa-0000-0000-0000-000000000001';
@@ -77,9 +95,11 @@ do $$ begin
   assert (select count(*) from public.comidas) = 0, 'Beto no ve las comidas de Ana';
   assert (select count(*) from public.comida_items) = 0, 'Beto no ve los items de Ana';
   assert (select count(*) from public.actividades) = 0, 'Beto no ve las actividades de Ana';
-  assert (select count(*) from public.alimentos) = 1, 'Beto solo ve el catálogo, no el alimento de Ana';
+  assert (select count(*) from public.alimentos) = 1 + 3, 'Beto solo ve el catálogo, no el alimento de Ana';
   assert (select count(*) from public.porciones) = 1, 'Beto no ve las porciones del alimento de Ana';
   assert (select count(*) from public.resumen_diario) = 0, 'Beto no ve el resumen de Ana';
+  assert (select count(*) from public.buscar_alimentos('batido')) = 0, 'Beto no encuentra el alimento de Ana';
+  assert (select count(*) from public.buscar_alimentos('platano')) = 1, 'Beto sí ve el catálogo';
 end $$;
 
 -- Beto no puede editar ni borrar datos de Ana.
@@ -120,7 +140,7 @@ delete from auth.users where id = '11111111-1111-1111-1111-111111111111';
 do $$ begin
   assert (select count(*) from public.comidas) = 0, 'al borrar la cuenta se borran sus comidas';
   assert (select count(*) from public.comida_items) = 0, 'y sus items';
-  assert (select count(*) from public.alimentos) = 1, 'y sus alimentos, pero no el catálogo';
+  assert (select count(*) from public.alimentos) = 1 + 3, 'y sus alimentos, pero no el catálogo';
 end $$;
 
 \echo 'TODAS LAS PRUEBAS PASARON'
