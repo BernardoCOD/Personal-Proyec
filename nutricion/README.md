@@ -7,7 +7,7 @@ Este proyecto es independiente del **Centro de Mando** que está en la raíz del
 | Fase | Estado |
 |---|---|
 | 1. Base de datos (Supabase) | ✅ Esquema listo: `supabase/migrations/` |
-| 2. App web instalable | Pendiente |
+| 2. App web instalable | ✅ Lista: `app/` |
 | 3. Base de alimentos (CENAN + USDA) | Pendiente |
 | 4. Conector MCP para Claude | Pendiente |
 | 5. Objetivos y recomendaciones | Pendiente |
@@ -71,8 +71,54 @@ Las pruebas de `supabase/tests/` aplican la migración en un PostgreSQL local, c
 bash nutricion/supabase/tests/run.sh   # necesita PostgreSQL y psql
 ```
 
-## Próximo paso: Fase 2
+## Fase 2 – La app (`app/`)
+
+App web instalable (PWA) hecha con Next.js 16, React 19 y Tailwind CSS 4.
+
+| Pantalla | Qué hace |
+|---|---|
+| **Iniciar sesión / Crear cuenta** | Correo y contraseña (Supabase Auth). |
+| **Registro inicial** (`/registro`) | Datos personales, cuestionario de actividad (días de gimnasio, tipo de ejercicio, nivel) y objetivo con su duración. Calcula al momento el metabolismo basal (Mifflin-St Jeor), el gasto diario y las metas de calorías y macros. Al guardar empieza una nueva etapa. |
+| **Hoy** (`/`) | Calorías restantes, barras de proteína, carbohidratos y grasas, comidas ordenadas por hora, actividad y peso del día. Con las flechas pasas a otros días. Puedes borrar un alimento, una comida completa o una actividad. |
+| **Registrar** (`/registrar`) | **Comida:** busca alimentos, elige la cantidad en porciones caseras, g, kg, lb, oz o ml y ve las macros al instante. Si el alimento no está en la lista, lo cargas a mano y, si quieres, lo guardas en tus alimentos. **Actividad:** con calorías estimadas por METs y tu peso. **Peso.** |
+| **Historial** | Gráfico de peso, promedios por semana y los últimos 30 días frente a tu meta. |
+| **Perfil** | Tus datos, metabolismo basal, gasto diario y la etapa actual. Avisa si la etapa terminó o si tu peso cambió lo suficiente como para recalcular la meta. |
+
+Las macros siempre se calculan en el servidor a partir de la base de datos; no se confía en lo que envía el navegador. Todas las consultas usan la sesión del usuario, así que RLS se aplica siempre.
+
+> La base de alimentos está vacía hasta la **Fase 3**. Mientras tanto, usa “Alimento que no está en la lista” y marca **Guardar en mis alimentos**: la próxima vez aparecerá en el buscador.
+
+### Probarla en tu computadora
+
+Necesitas [Node.js 22](https://nodejs.org) o una versión más reciente.
+
+```bash
+cd nutricion/app
+cp .env.example .env.local     # y completa la URL y la clave publishable de Supabase
+npm install
+npm run dev                    # abre http://localhost:3000
+```
+
+Otros comandos: `npm test` (pruebas de los cálculos), `npm run lint`, `npm run build`.
+
+### Publicarla en Vercel (gratis)
+
+1. Entra a [vercel.com](https://vercel.com) con tu cuenta de GitHub → **Add New → Project** → elige este repositorio.
+2. En **Root Directory** pon `nutricion/app`.
+3. En **Environment Variables** agrega `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+4. Pulsa **Deploy**. Te dará una dirección como `https://nutri-xxx.vercel.app`.
+5. En Supabase, en **Authentication → URL Configuration**, pon esa dirección en **Site URL** y agrega `https://nutri-xxx.vercel.app/auth/confirmar` en **Redirect URLs**. Así funciona el enlace del correo de confirmación.
+
+### Instalarla
+
+- **Android (Chrome):** abre la dirección → menú ⋮ → **Instalar app** (o **Agregar a la pantalla principal**).
+- **iPhone (Safari):** botón Compartir → **Agregar a inicio**.
+- **PC (Chrome o Edge):** el ícono de instalar en la barra de direcciones.
+
+**Entregable de la Fase 2:** la app instalada en el celular y la PC, mostrando tus datos. ✅
+
+## Próximo paso: Fase 3
 
 Prompt sugerido para Claude Code:
 
-> Vamos a construir la Fase 2 del plan. Crea en `nutricion/app` una app Next.js + Tailwind instalable (PWA) que use el esquema de `nutricion/supabase/migrations`: inicio de sesión, registro inicial con el cuestionario de actividad, cálculo de metabolismo basal (Mifflin-St Jeor) y gasto diario, panel del día e historial de peso.
+> Vamos con la Fase 3 del plan: cargar en la tabla `alimentos` las Tablas Peruanas de Composición de Alimentos (CENAN–INS) con sus porciones caseras, completar con USDA FoodData Central y agregar platos peruanos comunes como recetas.
