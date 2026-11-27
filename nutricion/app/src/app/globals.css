@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --fondo: #f6f7f4;
+  --superficie: #ffffff;
+  --texto: #1a1d1a;
+  --suave: #5f665f;
+  --borde: #e3e6e0;
+  --acento: #2f8f4e;
+  --acento-suave: #e3f2e7;
+  --proteina: #d0573b;
+  --carbos: #d89a1e;
+  --grasas: #3c78c3;
+  --peligro: #c23b3b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #111411;
+    --superficie: #1a1e1a;
+    --texto: #e9ece8;
+    --suave: #9aa39a;
+    --borde: #2c322c;
+    --acento: #4cbf70;
+    --acento-suave: #1f3324;
+    --proteina: #ec7a5f;
+    --carbos: #e8b443;
+    --grasas: #6aa2e8;
+    --peligro: #ef6b6b;
+  }
+}
+
+@theme inline {
+  --color-fondo: var(--fondo);
+  --color-superficie: var(--superficie);
+  --color-texto: var(--texto);
+  --color-suave: var(--suave);
+  --color-borde: var(--borde);
+  --color-acento: var(--acento);
+  --color-acento-suave: var(--acento-suave);
+  --color-proteina: var(--proteina);
+  --color-carbos: var(--carbos);
+  --color-grasas: var(--grasas);
+  --color-peligro: var(--peligro);
+  --font-sans: var(--font-geist-sans);
+}
+
+body {
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@layer components {
+  .tarjeta {
+    @apply rounded-2xl border border-borde bg-superficie p-4;
+  }
+  .campo {
+    @apply w-full rounded-xl border border-borde bg-superficie px-3 py-2.5 text-base text-texto outline-none focus:border-acento;
+  }
+  .etiqueta {
+    @apply mb-1 block text-sm font-medium text-suave;
+  }
+  .boton {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-acento px-4 py-2.5 font-semibold text-white transition active:scale-[0.98] disabled:opacity-50;
+  }
+  .boton-secundario {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-borde bg-superficie px-4 py-2.5 font-medium text-texto transition active:scale-[0.98] disabled:opacity-50;
+  }
+  .chip {
+    @apply rounded-full border border-borde px-3 py-1.5 text-sm text-suave transition;
+  }
+  .chip[data-activo="true"] {
+    @apply border-acento bg-acento-suave font-medium text-acento;
+  }
+}
