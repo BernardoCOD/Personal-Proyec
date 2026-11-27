@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { datosUsuario } from '@/lib/datos'
 import { esFechaValida, fechaEnZona } from '@/lib/fechas'
 import { aGramos, macrosDeGramos, por100gDeTotales, redondear, type Porcion, type ValoresPor100g } from '@/lib/unidades'
+import { CAMPOS_OFF, esCodigoBarras, productoDesdeOFF, type ProductoEtiqueta } from '@/lib/open-food-facts'
 
 const uuid = z.uuid()
 
@@ -271,4 +272,75 @@ export async function actualizarItem(_: EstadoRegistro, form: FormData): Promise
   revalidatePath('/', 'layout')
   const comida = item.comidas as unknown as { fecha_hora: string } | null
   redirect(comida ? `/?fecha=${fechaEnZona(new Date(comida.fecha_hora), zona)}` : '/')
+}
+
+// ---------------------------------------------------------------------
+// Código de barras
+// ---------------------------------------------------------------------
+export type ResultadoCodigo =
+  | { tipo: 'mio'; alimento: AlimentoBuscado }
+  | { tipo: 'nuevo'; producto: ProductoEtiqueta }
+  | { tipo: 'no_existe'; codigo: string }
+  | { tipo: 'error'; mensaje: string }
+
+/** Busca el código primero en mis productos guardados y luego en Open Food Facts. */
+export async function buscarPorCodigo(codigo: string): Promise<ResultadoCodigo> {
+  const c = String(codigo ?? '').replace(/\D/g, '')
+  if (!esCodigoBarras(c)) return { tipo: 'error', mensaje: 'Código de barras no válido.' }
+  const { supabase } = await datosUsuario()
+
+  const mio = await supabase.from('alimentos').select(COLUMNAS_ALIMENTO).eq('codigo_barras', c).limit(1).maybeSingle()
+  if (mio.data) return { tipo: 'mio', alimento: normalizarAlimento(mio.data) }
+
+  try {
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${c}.json?fields=${CAMPOS_OFF}`, {
+      headers: { 'User-Agent': 'Nutri/1.0 (app personal de nutricion)' },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (res.status === 404) return { tipo: 'no_existe', codigo: c }
+    if (!res.ok) return { tipo: 'error', mensaje: `Open Food Facts respondió ${res.status}. Intenta de nuevo.` }
+    const producto = productoDesdeOFF(c, await res.json())
+    return producto ? { tipo: 'nuevo', producto } : { tipo: 'no_existe', codigo: c }
+  } catch {
+    return { tipo: 'error', mensaje: 'No se pudo consultar Open Food Facts. Revisa tu conexión.' }
+  }
+}
+
+const esquemaProducto = z.object({
+  codigo: z.string().regex(/^\d{6,14}$/),
+  nombre: z.string().trim().min(1, 'Escribe el nombre del producto.').max(150),
+  marca: z.string().trim().max(80).nullable(),
+  calorias: z.coerce.number().min(0).max(900),
+  proteina_g: z.coerce.number().min(0).max(100),
+  carbohidratos_g: z.coerce.number().min(0).max(100),
+  grasa_g: z.coerce.number().min(0).max(100),
+  fibra_g: z.coerce.number().min(0).max(100),
+  porcionGramos: z.coerce.number().positive().max(5000).nullable(),
+})
+
+/** Guarda el producto confirmado como alimento propio (con su porción) y lo devuelve. */
+export async function guardarProducto(datos: unknown): Promise<{ alimento?: AlimentoBuscado; error?: string }> {
+  const r = esquemaProducto.safeParse(datos)
+  if (!r.success) return { error: r.error.issues[0].message }
+  const d = r.data
+  if (d.proteina_g + d.carbohidratos_g + d.grasa_g > 100.5) return { error: 'Proteína + carbohidratos + grasa no pueden pasar de 100 g por cada 100 g.' }
+  const { supabase, usuarioId } = await datosUsuario()
+
+  const valores = {
+    usuario_id: usuarioId, nombre: d.nombre, marca: d.marca || null, fuente: 'etiqueta', codigo_barras: d.codigo,
+    calorias: d.calorias, proteina_g: d.proteina_g, carbohidratos_g: d.carbohidratos_g, grasa_g: d.grasa_g, fibra_g: d.fibra_g,
+  }
+  const existente = await supabase.from('alimentos').select('id').eq('codigo_barras', d.codigo).eq('usuario_id', usuarioId).maybeSingle()
+  const guardado = existente.data
+    ? await supabase.from('alimentos').update(valores).eq('id', existente.data.id).select('id').single()
+    : await supabase.from('alimentos').insert(valores).select('id').single()
+  if (guardado.error) return { error: `No se pudo guardar: ${guardado.error.message}` }
+
+  if (d.porcionGramos) {
+    await supabase.from('porciones')
+      .upsert({ alimento_id: guardado.data.id, nombre: 'porción (etiqueta)', gramos: d.porcionGramos }, { onConflict: 'alimento_id,nombre' })
+  }
+  const a = await supabase.from('alimentos').select(COLUMNAS_ALIMENTO).eq('id', guardado.data.id).single()
+  if (a.error) return { error: a.error.message }
+  return { alimento: normalizarAlimento(a.data) }
 }

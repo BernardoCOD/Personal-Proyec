@@ -104,6 +104,26 @@ do $$ begin
   assert (select count(*) from public.buscar_alimentos('platano')) = 1, 'Beto sí ve el catálogo';
 end $$;
 
+-- Código de barras: Beto puede guardar el mismo producto que Ana, pero no dos veces.
+reset role;
+insert into public.alimentos (usuario_id, nombre, calorias, fuente, codigo_barras)
+values ('11111111-1111-1111-1111-111111111111', 'Leche evaporada', 133, 'etiqueta', '7750885006513');
+set role authenticated;
+do $$ begin perform set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false); end $$;
+insert into public.alimentos (nombre, calorias, fuente, codigo_barras) values ('Leche evaporada', 133, 'etiqueta', '7750885006513');
+do $$ begin
+  assert (select count(*) from public.alimentos where codigo_barras = '7750885006513') = 1, 'Beto solo ve su propio producto escaneado';
+  insert into public.alimentos (nombre, calorias, fuente, codigo_barras) values ('Otra', 1, 'etiqueta', '7750885006513');
+  raise exception 'no debe repetirse el código para el mismo usuario';
+exception when unique_violation then null;
+end $$;
+do $$ begin
+  insert into public.alimentos (nombre, calorias, fuente, codigo_barras) values ('Mal', 1, 'etiqueta', 'abc');
+  raise exception 'el código debe ser numérico';
+exception when check_violation then null;
+end $$;
+delete from public.alimentos where codigo_barras = '7750885006513';
+
 -- Beto no puede editar ni borrar datos de Ana.
 do $$ begin
   update public.perfiles set nombre = 'hackeado' where id = '11111111-1111-1111-1111-111111111111';
