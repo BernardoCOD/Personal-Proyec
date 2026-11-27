@@ -18,6 +18,8 @@ type Pestana = 'comida' | 'actividad' | 'peso'
 
 type Props = {
   pestanaInicial: Pestana
+  /** Sección desde la que se llegó (desayuno, almuerzo...); vacío = según la hora. */
+  tipoComida: string
   fecha: string
   hoy: string
   zona: string
@@ -83,9 +85,9 @@ function macrosItem(i: ItemUI) {
   return { gramos: n(i.gramos), calorias: n(i.calorias), proteina_g: n(i.proteina_g), carbohidratos_g: n(i.carbohidratos_g), grasa_g: n(i.grasa_g), fibra_g: 0 }
 }
 
-function FormComida({ fechaHora: inicial, hoy, zona, recientes }: Props) {
+function FormComida({ fechaHora: inicial, hoy, zona, recientes, tipoComida }: Props) {
   const [fechaHora, setFechaHora] = useState(inicial)
-  const [tipo, setTipo] = useState<string>('')
+  const [tipo, setTipo] = useState<string>(tipoComida)
   const [notas, setNotas] = useState('')
   const [items, setItems] = useState<ItemUI[]>([])
   const [estado, accion, guardando] = useActionState(registrarComida, {} as EstadoRegistro)

@@ -22,6 +22,9 @@ export async function eliminarItem(form: FormData) {
     if (count === 0) await supabase.from('comidas').delete().eq('id', data.comida_id)
   }
   revalidatePath('/', 'layout')
+  // Desde la pantalla de edición se vuelve al día del alimento.
+  const volver = String(form.get('volver') ?? '')
+  if (/^\/\?fecha=\d{4}-\d{2}-\d{2}$/.test(volver)) redirect(volver)
 }
 
 export async function eliminarComida(form: FormData) {
@@ -217,4 +220,55 @@ export async function registrarPeso(_: EstadoRegistro, form: FormData): Promise<
   if (error) return { error: `No se pudo guardar: ${error.message}` }
   revalidatePath('/', 'layout')
   redirect('/historial')
+}
+
+// ---------------------------------------------------------------------
+// Editar la cantidad de un alimento ya registrado
+// ---------------------------------------------------------------------
+const esquemaEditar = z.object({
+  id: z.uuid(),
+  cantidad: z.coerce.number().finite().positive('La cantidad debe ser mayor que 0.').max(100000),
+  unidad: z.string().trim().min(1).max(40),
+})
+
+export async function actualizarItem(_: EstadoRegistro, form: FormData): Promise<EstadoRegistro> {
+  const r = esquemaEditar.safeParse(Object.fromEntries(form))
+  if (!r.success) return { error: r.error.issues[0].message }
+  const { id, cantidad, unidad } = r.data
+  const { supabase, zona } = await datosUsuario()
+
+  const { data: item } = await supabase.from('comida_items')
+    .select('id, alimento_id, cantidad, unidad, gramos, calorias, proteina_g, carbohidratos_g, grasa_g, fibra_g, comidas(fecha_hora)')
+    .eq('id', id).maybeSingle()
+  if (!item) return { error: 'Ese alimento ya no existe.' }
+
+  let cambios: Record<string, number | string>
+  const alimento = item.alimento_id
+    ? (await supabase.from('alimentos').select(COLUMNAS_ALIMENTO).eq('id', item.alimento_id).maybeSingle()).data
+    : null
+  if (alimento) {
+    // Del catálogo: se recalcula con los valores por 100 g y sus porciones.
+    const a = normalizarAlimento(alimento)
+    const gramos = aGramos(cantidad, unidad, a.porciones)
+    if (gramos === null) return { error: `Unidad "${unidad}" no válida para ${a.nombre}.` }
+    cambios = { cantidad, unidad, gramos, ...macrosDeGramos(a, gramos) }
+  } else {
+    // Cargado a mano: se escala en proporción a la cantidad, con la misma unidad.
+    const f = cantidad / Number(item.cantidad)
+    cambios = {
+      cantidad,
+      gramos: redondear(Number(item.gramos) * f),
+      calorias: redondear(Number(item.calorias) * f),
+      proteina_g: redondear(Number(item.proteina_g) * f),
+      carbohidratos_g: redondear(Number(item.carbohidratos_g) * f),
+      grasa_g: redondear(Number(item.grasa_g) * f),
+      fibra_g: redondear(Number(item.fibra_g) * f),
+    }
+  }
+
+  const { error } = await supabase.from('comida_items').update(cambios).eq('id', id)
+  if (error) return { error: `No se pudo guardar: ${error.message}` }
+  revalidatePath('/', 'layout')
+  const comida = item.comidas as unknown as { fecha_hora: string } | null
+  redirect(comida ? `/?fecha=${fechaEnZona(new Date(comida.fecha_hora), zona)}` : '/')
 }

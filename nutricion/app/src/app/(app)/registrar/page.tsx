@@ -5,6 +5,8 @@ import { esFechaValida } from '@/lib/fechas'
 import { alimentosRecientes } from '../acciones'
 import { Registrar } from './registrar'
 
+const TIPOS_COMIDA = ['desayuno', 'almuerzo', 'cena', 'snack']
+
 export const metadata: Metadata = { title: 'Registrar' }
 
 export default function PaginaRegistrar({ searchParams }: PageProps<'/registrar'>) {
@@ -22,9 +24,11 @@ async function Contenido({ searchParams }: { searchParams: PageProps<'/registrar
   const [{ hoy, zona, ultimoPeso }, sp, recientes] = await Promise.all([datosRegistrados(), searchParams, alimentosRecientes()])
   const fecha = esFechaValida(sp.fecha) && sp.fecha <= hoy ? sp.fecha : hoy
   const pestana = sp.tipo === 'actividad' || sp.tipo === 'peso' ? sp.tipo : 'comida'
+  const tipoComida = typeof sp.comida === 'string' && TIPOS_COMIDA.includes(sp.comida) ? sp.comida : ''
   return (
     <Registrar
       pestanaInicial={pestana}
+      tipoComida={tipoComida}
       fecha={fecha}
       hoy={hoy}
       zona={zona}
