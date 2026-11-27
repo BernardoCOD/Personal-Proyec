@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { FormularioLogin } from './formulario'
 
 export const metadata: Metadata = { title: 'Iniciar sesión' }
@@ -12,7 +13,9 @@ export default function PaginaLogin() {
         <h1 className="text-2xl font-bold">Nutri</h1>
         <p className="text-suave">Tu registro de comidas, macros y entrenamiento.</p>
       </div>
-      <FormularioLogin />
+      <Suspense fallback={<div className="tarjeta h-72 animate-pulse" />}>
+        <FormularioLogin />
+      </Suspense>
     </main>
   )
 }
