@@ -64,6 +64,8 @@ do $$ begin
   assert (select nombre from public.buscar_alimentos('batido')) = 'Batido de Ana', 'encuentra mis alimentos';
   assert (select porciones from public.buscar_alimentos('arroz blanco')) = '[{"nombre": "taza", "gramos": 160.00}]'::jsonb, 'trae las porciones';
   assert (select count(*) from public.buscar_alimentos('a')) = 0, 'mínimo 2 letras';
+  assert (select count(*) from public.buscar_alimentos('platanos')) = 1, 'plural: platanos -> Plátano';
+  assert (select nombre from public.buscar_alimentos('pollos arroz')) = 'Arroz con pollo', 'plural de varias palabras';
   assert (select count(*) from public.buscar_alimentos('100%')) = 0, 'el % se busca literal';
   assert (select fuente from public.buscar_alimentos('a', 5) limit 1) is null, 'sin resultados con 1 letra';
 end $$;

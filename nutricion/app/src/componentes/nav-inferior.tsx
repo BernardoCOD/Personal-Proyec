@@ -11,7 +11,11 @@ const ENLACES = [
 ] as const
 
 export function NavInferior() {
-  const ruta = usePathname()
+  return <Nav ruta={usePathname()} />
+}
+
+/** La misma barra sin leer la URL (mientras carga, en rutas dinámicas). */
+export function Nav({ ruta }: { ruta: string }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-borde bg-superficie/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:static md:mb-6 md:rounded-2xl md:border">
       <ul className="mx-auto grid max-w-lg grid-cols-4">

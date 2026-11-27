@@ -3,7 +3,8 @@
 import { useActionState, useEffect, useState, useTransition } from 'react'
 import { caloriasActividad, type Intensidad } from '@/lib/calculos'
 import { desfaseZona } from '@/lib/fechas'
-import { aGramos, macrosDeGramos, UNIDADES_FIJAS } from '@/lib/unidades'
+import { aGramos, esUnidadFija, macrosDeGramos, UNIDADES_FIJAS } from '@/lib/unidades'
+import { cantidadInicial, interpretarBusqueda } from '@/lib/busqueda'
 import { fmt } from '@/componentes/ui'
 import {
   buscarAlimentos,
@@ -18,6 +19,8 @@ type Pestana = 'comida' | 'actividad' | 'peso'
 
 type Props = {
   pestanaInicial: Pestana
+  /** Sección desde la que se llegó (desayuno, almuerzo...); vacío = según la hora. */
+  tipoComida: string
   fecha: string
   hoy: string
   zona: string
@@ -83,18 +86,24 @@ function macrosItem(i: ItemUI) {
   return { gramos: n(i.gramos), calorias: n(i.calorias), proteina_g: n(i.proteina_g), carbohidratos_g: n(i.carbohidratos_g), grasa_g: n(i.grasa_g), fibra_g: 0 }
 }
 
-function FormComida({ fechaHora: inicial, hoy, zona, recientes }: Props) {
+function FormComida({ fechaHora: inicial, hoy, zona, recientes, tipoComida }: Props) {
   const [fechaHora, setFechaHora] = useState(inicial)
-  const [tipo, setTipo] = useState<string>('')
+  const [tipo, setTipo] = useState<string>(tipoComida)
   const [notas, setNotas] = useState('')
   const [items, setItems] = useState<ItemUI[]>([])
   const [estado, accion, guardando] = useActionState(registrarComida, {} as EstadoRegistro)
   const tipoEfectivo = tipo || (fechaHora ? tipoPorHora(fechaHora) : 'almuerzo')
 
-  const agregar = (a: AlimentoBuscado) => {
-    const porcion = a.porciones[0]
-    setItems((xs) => [...xs, { clave: siguienteClave++, tipo: 'catalogo', alimento: a, cantidad: porcion ? '1' : '100', unidad: porcion ? porcion.nombre : 'g' }])
+  const agregar = (a: AlimentoBuscado, cantidad: number, unidad: string) =>
+    setItems((xs) => [...xs, { clave: siguienteClave++, tipo: 'catalogo', alimento: a, cantidad: String(cantidad), unidad }])
+  const agregarManual = (nombre = '', cantidad: number | null = null, unidad: string | null = null) => {
+    const gramos = unidad && esUnidadFija(unidad) && cantidad ? String(aGramos(cantidad, unidad)) : ''
+    setItems((xs) => [...xs, {
+      clave: siguienteClave++, tipo: 'manual', nombre, cantidad: String(cantidad ?? 1), unidad: unidad ?? 'porción', gramos,
+      calorias: '', proteina_g: '', carbohidratos_g: '', grasa_g: '', guardar: true,
+    }])
   }
+  const enLaComida = new Set(items.flatMap((i) => (i.tipo === 'catalogo' ? [i.alimento.id] : [])))
   const actualizar = (clave: number, cambios: Partial<ItemCatalogo> | Partial<ItemManual>) =>
     setItems((xs) => xs.map((x) => (x.clave === clave ? ({ ...x, ...cambios } as ItemUI) : x)))
   const quitar = (clave: number) => setItems((xs) => xs.filter((x) => x.clave !== clave))
@@ -135,10 +144,10 @@ function FormComida({ fechaHora: inicial, hoy, zona, recientes }: Props) {
         </div>
       </section>
 
-      <Buscador onElegir={agregar} recientes={recientes} />
+      <Buscador onAgregar={agregar} onManual={agregarManual} recientes={recientes} enLaComida={enLaComida}
+        nombreComida={NOMBRES_COMIDA[tipoEfectivo] ?? tipoEfectivo} />
 
-      <button type="button" className="boton-secundario w-full text-sm"
-        onClick={() => setItems((xs) => [...xs, { clave: siguienteClave++, tipo: 'manual', nombre: '', cantidad: '1', unidad: 'porción', gramos: '', calorias: '', proteina_g: '', carbohidratos_g: '', grasa_g: '', guardar: false }])}>
+      <button type="button" className="boton-secundario w-full text-sm" onClick={() => agregarManual()}>
         + Alimento que no está en la lista
       </button>
 
@@ -172,11 +181,25 @@ function FormComida({ fechaHora: inicial, hoy, zona, recientes }: Props) {
   )
 }
 
-function Buscador({ onElegir, recientes }: { onElegir: (a: AlimentoBuscado) => void; recientes: AlimentoBuscado[] }) {
+/** "al desayuno", "a la cena"... para los textos de agregar. */
+const NOMBRES_COMIDA: Record<string, string> = { desayuno: 'al desayuno', almuerzo: 'al almuerzo', cena: 'a la cena', snack: 'a los snacks' }
+
+function Buscador({ onAgregar, onManual, recientes, enLaComida, nombreComida }: {
+  onAgregar: (a: AlimentoBuscado, cantidad: number, unidad: string) => void
+  onManual: (nombre: string, cantidad: number | null, unidad: string | null) => void
+  recientes: AlimentoBuscado[]
+  enLaComida: Set<string>
+  nombreComida: string
+}) {
   const [q, setQ] = useState('')
   const [encontrados, setEncontrados] = useState<{ texto: string; lista: AlimentoBuscado[] } | null>(null)
   const [buscando, iniciar] = useTransition()
-  const texto = q.trim()
+  const [abierto, setAbierto] = useState<{ id: string; cantidad: string; unidad: string } | null>(null)
+  const [aviso, setAviso] = useState('')
+
+  // "plátano frito 100g" -> buscar "plátano frito", con 100 g ya puestos.
+  const interpretado = interpretarBusqueda(q)
+  const texto = interpretado.texto.trim()
 
   useEffect(() => {
     if (texto.length < 2) return
@@ -190,35 +213,106 @@ function Buscador({ onElegir, recientes }: { onElegir: (a: AlimentoBuscado) => v
   // Solo se muestran los resultados de lo que está escrito ahora.
   const resultados = texto.length >= 2 && encontrados?.texto === texto ? encontrados.lista : null
   const lista = resultados ?? (texto.length >= 2 ? [] : recientes)
+
+  const confirmar = (a: AlimentoBuscado, cantidad: number, unidad: string) => {
+    onAgregar(a, cantidad, unidad)
+    setAviso(`✓ ${a.nombre} agregado ${nombreComida}`)
+    setAbierto(null)
+    setQ('')
+  }
+  const abrir = (a: AlimentoBuscado) => {
+    if (abierto?.id === a.id) return setAbierto(null)
+    const ini = cantidadInicial(interpretado, a.porciones)
+    setAbierto({ id: a.id, cantidad: String(ini.cantidad), unidad: ini.unidad })
+  }
+
   return (
     <section className="tarjeta space-y-2">
       <label className="etiqueta" htmlFor="buscar">Buscar alimento</label>
-      <input id="buscar" type="search" className="campo" placeholder="arroz, pollo, huevo…" value={q} autoComplete="off"
-        onChange={(e) => setQ(e.target.value)} />
+      <input id="buscar" type="search" className="campo" placeholder="Ej.: arroz, 2 panes, plátano frito 100 g" value={q} autoComplete="off"
+        onChange={(e) => { setQ(e.target.value); setAviso(''); setAbierto(null) }} />
+      {aviso && <p role="status" className="rounded-lg bg-acento-suave px-3 py-2 text-sm text-acento">{aviso}</p>}
+      {(interpretado.cantidad !== null || interpretado.unidad) && texto.length >= 2 && (
+        <p className="text-xs text-suave">
+          Cantidad detectada: <b className="text-texto">{interpretado.cantidad ?? 1} {interpretado.unidad ?? (interpretado.cantidad !== null && interpretado.cantidad >= 20 ? 'g' : 'porción')}</b>. Toca un alimento para cambiarla.
+        </p>
+      )}
       {texto.length < 2 && recientes.length > 0 && <p className="text-xs text-suave">Usados recientemente</p>}
       {buscando && <p className="text-xs text-suave">Buscando…</p>}
       {resultados !== null && !buscando && resultados.length === 0 && (
-        <p className="text-sm text-suave">No encontré “{texto}”. Agrégalo con el botón de abajo.</p>
+        <div className="rounded-xl border border-dashed border-borde p-3 text-sm">
+          <p className="text-suave">No encontré “{texto}”.</p>
+          <button type="button" className="mt-2 font-medium text-acento"
+            onClick={() => { onManual(texto, interpretado.cantidad, interpretado.unidad); setQ('') }}>
+            + Agregar “{texto}” a mano
+          </button>
+        </div>
       )}
       {lista.length > 0 && (
-        <ul className="max-h-72 divide-y divide-borde overflow-y-auto">
-          {lista.map((a) => (
-            <li key={a.id}>
-              <button type="button" className="flex w-full items-center gap-2 py-2 text-left text-sm" onClick={() => onElegir(a)}>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5">
-                    <span className="truncate">{a.nombre}{a.marca && <span className="text-suave"> · {a.marca}</span>}</span>
-                    <Fuente fuente={a.fuente} />
-                  </span>
-                  <span className="text-xs text-suave">{fmt(a.calorias)} kcal · P {fmt(a.proteina_g, 1)} · C {fmt(a.carbohidratos_g, 1)} · G {fmt(a.grasa_g, 1)} por 100 g</span>
-                </span>
-                <span className="text-lg text-acento" aria-hidden>+</span>
-              </button>
-            </li>
-          ))}
+        <ul className="max-h-[26rem] divide-y divide-borde overflow-y-auto">
+          {lista.map((a) => {
+            const ini = cantidadInicial(interpretado, a.porciones)
+            const esAbierto = abierto?.id === a.id
+            return (
+              <li key={a.id} className={esAbierto ? 'rounded-xl bg-fondo' : ''}>
+                <div className="flex items-center gap-2">
+                  <button type="button" className="flex min-w-0 flex-1 flex-col py-2.5 pl-1 text-left text-sm" onClick={() => abrir(a)}
+                    aria-expanded={esAbierto}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate">{a.nombre}{a.marca && <span className="text-suave"> · {a.marca}</span>}</span>
+                      <Fuente fuente={a.fuente} />
+                    </span>
+                    <span className="text-xs text-suave">
+                      {enLaComida.has(a.id) && <b className="text-acento">✓ en la comida · </b>}
+                      {fmt(a.calorias)} kcal · P {fmt(a.proteina_g, 1)} · C {fmt(a.carbohidratos_g, 1)} · G {fmt(a.grasa_g, 1)} por 100 g
+                    </span>
+                  </button>
+                  {!esAbierto && (
+                    <button type="button" onClick={() => confirmar(a, ini.cantidad, ini.unidad)}
+                      aria-label={`Agregar ${ini.cantidad} ${ini.unidad} de ${a.nombre}`} title={`Agregar ${ini.cantidad} ${ini.unidad}`}
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-acento text-xl leading-none text-white active:scale-95">+</button>
+                  )}
+                </div>
+                {esAbierto && <AjusteCantidad alimento={a} valor={abierto} onCambio={setAbierto}
+                  onAgregar={(c, u) => confirmar(a, c, u)} nombreComida={nombreComida} />}
+              </li>
+            )
+          })}
         </ul>
       )}
     </section>
+  )
+}
+
+/** Panel que se abre al tocar un resultado: cantidad, unidad y calorías antes de agregar. */
+function AjusteCantidad({ alimento, valor, onCambio, onAgregar, nombreComida }: {
+  alimento: AlimentoBuscado
+  valor: { id: string; cantidad: string; unidad: string }
+  onCambio: (v: { id: string; cantidad: string; unidad: string }) => void
+  onAgregar: (cantidad: number, unidad: string) => void
+  nombreComida: string
+}) {
+  const g = aGramos(Number(valor.cantidad), valor.unidad, alimento.porciones)
+  const m = g === null ? null : macrosDeGramos(alimento, g)
+  return (
+    <div className="space-y-2 px-1 pb-3">
+      <div className="grid grid-cols-[1fr_1.4fr] gap-2">
+        <input type="number" inputMode="decimal" step="any" min="0" className="campo" aria-label="Cantidad" autoFocus
+          value={valor.cantidad} onChange={(e) => onCambio({ ...valor, cantidad: e.target.value })} />
+        <select className="campo" aria-label="Unidad" value={valor.unidad} onChange={(e) => onCambio({ ...valor, unidad: e.target.value })}>
+          {alimento.porciones.map((p) => <option key={p.nombre} value={p.nombre}>{p.nombre} ({fmt(p.gramos)} g)</option>)}
+          {Object.entries(UNIDADES_FIJAS).map(([k, u]) => <option key={k} value={k}>{u.nombre}</option>)}
+        </select>
+      </div>
+      <p className="text-xs text-suave">
+        {m && g !== null
+          ? <>{fmt(g)} g → <b className="text-texto">{fmt(m.calorias)} kcal</b> · P {fmt(m.proteina_g, 1)} · C {fmt(m.carbohidratos_g, 1)} · G {fmt(m.grasa_g, 1)}</>
+          : 'Escribe una cantidad mayor que 0.'}
+      </p>
+      <button type="button" className="boton w-full py-2 text-sm" disabled={!m} onClick={() => onAgregar(Number(valor.cantidad), valor.unidad)}>
+        + Agregar {nombreComida}
+      </button>
+    </div>
   )
 }
 
