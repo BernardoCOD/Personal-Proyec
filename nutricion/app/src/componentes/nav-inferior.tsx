@@ -7,6 +7,7 @@ const ENLACES = [
   { href: '/', nombre: 'Hoy', icono: 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10' },
   { href: '/registrar', nombre: 'Registrar', icono: 'M12 5v14M5 12h14' },
   { href: '/historial', nombre: 'Progreso', icono: 'M4 19V9m6 10V5m6 14v-7m4 7H2' },
+  { href: '/fotos', nombre: 'Fotos', icono: 'M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z' },
   { href: '/perfil', nombre: 'Perfil', icono: 'M12 12a4 4 0 100-8 4 4 0 000 8zm-7 9a7 7 0 0114 0' },
 ] as const
 
@@ -18,7 +19,7 @@ export function NavInferior() {
 export function Nav({ ruta }: { ruta: string }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-borde bg-superficie/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:static md:mb-6 md:rounded-2xl md:border">
-      <ul className="mx-auto grid max-w-lg grid-cols-4">
+      <ul className="mx-auto grid max-w-lg grid-cols-5">
         {ENLACES.map((e) => {
           const activo = e.href === '/' ? ruta === '/' : ruta.startsWith(e.href)
           return (

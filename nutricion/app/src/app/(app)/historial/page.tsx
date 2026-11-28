@@ -7,6 +7,7 @@ import { fmt, Vacio } from '@/componentes/ui'
 import { datosRegistrados } from '@/lib/datos'
 import { fechaCorta, sumarDias } from '@/lib/fechas'
 import { cargarProgreso } from '@/lib/progreso'
+import { proximaFoto } from '@/lib/fotos'
 import { REGLAS, TEXTO_REGLAS } from '@/lib/racha'
 
 export const metadata: Metadata = { title: 'Progreso' }
@@ -27,9 +28,10 @@ const NOMBRE_DIA = new Intl.DateTimeFormat('es-PE', { weekday: 'short', day: 'nu
 
 async function Contenido() {
   const { supabase, hoy } = await datosRegistrados()
-  const [progreso, pesosR] = await Promise.all([
+  const [progreso, pesosR, fotosR] = await Promise.all([
     cargarProgreso(supabase, hoy, 8),
     supabase.from('mediciones_peso').select('fecha, peso_kg').gte('fecha', sumarDias(hoy, -180)).order('fecha'),
+    supabase.from('fotos_progreso').select('fecha'),
   ])
   const { registro, cumplimiento, semanas, porFecha, estados } = progreso
   const actual = semanas[semanas.length - 1]
@@ -37,6 +39,7 @@ async function Contenido() {
   const pesos = (pesosR.data ?? []).map((p) => ({ fecha: p.fecha as string, kg: Number(p.peso_kg) }))
   const dias = [...porFecha.values()].filter((d) => d.fecha >= sumarDias(hoy, -29)).sort((a, b) => b.fecha.localeCompare(a.fecha))
   const hayDatos = porFecha.size > 0
+  const foto = proximaFoto((fotosR.data ?? []) as { fecha: string }[], hoy)
 
   return (
     <div className="space-y-4">
@@ -47,6 +50,17 @@ async function Contenido() {
         <TarjetaRacha tipo="cumplimiento" titulo="Cumpliendo metas" racha={cumplimiento}
           ayuda={cumplimiento.hoyCuenta ? 'Hoy ya suma' : 'Kcal y macros dentro de tus metas'} />
       </section>
+
+      {foto.toca && (
+        <Link href="/fotos" className="tarjeta flex items-center gap-3 border-acento">
+          <span className="text-2xl" aria-hidden>📸</span>
+          <span className="flex-1 text-sm">
+            <b>{(fotosR.data ?? []).length === 0 ? 'Toma tu primera foto de progreso' : '¡Toca tu foto de progreso!'}</b>
+            <span className="block text-suave">Compararla con la anterior te ayuda a ver cambios que la báscula no muestra.</span>
+          </span>
+          <span className="text-acento" aria-hidden>›</span>
+        </Link>
+      )}
 
       {/* Esta semana vs la anterior */}
       <section className="tarjeta">

@@ -1,8 +1,11 @@
 import { createMcpHandler, withMcpAuth } from 'mcp-handler'
-import { INSTRUCCIONES, registrarHerramientas, verificarToken } from '@/lib/mcp'
+import { INSTRUCCIONES, registrarHerramientas, registrarHerramientasFotos, verificarToken } from '@/lib/mcp'
 
 // Conector de Claude: https://<tu-app>/api/mcp (Streamable HTTP, OAuth con Supabase Auth).
-const handler = createMcpHandler((server) => registrarHerramientas(server), {
+const handler = createMcpHandler((server) => {
+  registrarHerramientas(server)
+  registrarHerramientasFotos(server)
+}, {
   serverInfo: { name: 'nutri', version: '1.0.0' },
   instructions: INSTRUCCIONES,
 })
