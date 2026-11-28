@@ -1,16 +1,20 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Suspense } from 'react'
+import { BarrasSemanas, Comparacion, Leyenda, pct, TarjetaRacha } from '@/componentes/progreso'
+import { CeldaDia, TEXTO_ESTADO } from '@/componentes/racha'
 import { fmt, Vacio } from '@/componentes/ui'
 import { datosRegistrados } from '@/lib/datos'
-import { fechaCorta, lunesDeLaSemana, sumarDias } from '@/lib/fechas'
+import { fechaCorta, sumarDias } from '@/lib/fechas'
+import { cargarProgreso } from '@/lib/progreso'
+import { REGLAS } from '@/lib/racha'
 
-export const metadata: Metadata = { title: 'Historial' }
+export const metadata: Metadata = { title: 'Progreso' }
 
-export default function PaginaHistorial() {
+export default function PaginaProgreso() {
   return (
     <>
-      <h1 className="mb-4 text-xl font-bold">Historial</h1>
+      <h1 className="mb-4 text-xl font-bold">Progreso</h1>
       <Suspense fallback={<p className="text-suave">Cargando…</p>}>
         <Contenido />
       </Suspense>
@@ -18,39 +22,109 @@ export default function PaginaHistorial() {
   )
 }
 
-type Dia = { fecha: string; calorias: number; proteina_g: number; carbohidratos_g: number; grasa_g: number }
+const DIAS_SEMANA = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+const NOMBRE_DIA = new Intl.DateTimeFormat('es-PE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 
 async function Contenido() {
-  const { supabase, objetivo, hoy } = await datosRegistrados()
-  const [resumenR, pesosR] = await Promise.all([
-    supabase.from('resumen_diario').select('fecha, calorias, proteina_g, carbohidratos_g, grasa_g')
-      .gte('fecha', sumarDias(hoy, -55)).order('fecha', { ascending: false }),
+  const { supabase, hoy } = await datosRegistrados()
+  const [progreso, pesosR] = await Promise.all([
+    cargarProgreso(supabase, hoy, 8),
     supabase.from('mediciones_peso').select('fecha, peso_kg').gte('fecha', sumarDias(hoy, -180)).order('fecha'),
   ])
-  const dias: Dia[] = (resumenR.data ?? []).map((d) => ({
-    fecha: d.fecha as string,
-    calorias: Number(d.calorias),
-    proteina_g: Number(d.proteina_g),
-    carbohidratos_g: Number(d.carbohidratos_g),
-    grasa_g: Number(d.grasa_g),
-  }))
+  const { registro, cumplimiento, semanas, porFecha, estados } = progreso
+  const actual = semanas[semanas.length - 1]
+  const anterior = semanas[semanas.length - 2]
   const pesos = (pesosR.data ?? []).map((p) => ({ fecha: p.fecha as string, kg: Number(p.peso_kg) }))
-
-  // Promedios por semana (solo días con registros).
-  const semanas = new Map<string, Dia[]>()
-  for (const d of dias) {
-    const l = lunesDeLaSemana(d.fecha)
-    semanas.set(l, [...(semanas.get(l) ?? []), d])
-  }
-  const promedios = [...semanas.entries()].slice(0, 8).map(([lunes, ds]) => ({
-    lunes,
-    dias: ds.length,
-    calorias: ds.reduce((s, d) => s + d.calorias, 0) / ds.length,
-    proteina: ds.reduce((s, d) => s + d.proteina_g, 0) / ds.length,
-  }))
+  const dias = [...porFecha.values()].filter((d) => d.fecha >= sumarDias(hoy, -29)).sort((a, b) => b.fecha.localeCompare(a.fecha))
+  const hayDatos = porFecha.size > 0
 
   return (
     <div className="space-y-4">
+      {/* Rachas */}
+      <section className="grid grid-cols-2 gap-3" aria-label="Rachas">
+        <TarjetaRacha tipo="registro" titulo="Registrando" racha={registro}
+          ayuda={registro.hoyCuenta ? 'Hoy ya suma' : `Registra ${REGLAS.seccionesMinimas} comidas hoy para sumar`} />
+        <TarjetaRacha tipo="cumplimiento" titulo="Cumpliendo metas" racha={cumplimiento}
+          ayuda={cumplimiento.hoyCuenta ? 'Hoy ya suma' : 'Kcal ±10 % y proteína ≥ 90 %'} />
+      </section>
+
+      {/* Esta semana vs la anterior */}
+      <section className="tarjeta">
+        <h2 className="font-semibold">Esta semana vs la anterior</h2>
+        <p className="mb-3 text-xs text-suave">Semana del {fechaCorta(actual.lunes)} (van {actual.dias} {actual.dias === 1 ? 'día' : 'días'}) frente a la del {fechaCorta(anterior.lunes)}</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Comparacion titulo="Días registrados" ahora={pct(actual.registrados, actual.dias)} antes={pct(anterior.registrados, anterior.dias)}
+            detalle={`${actual.registrados} de ${actual.dias} · antes ${anterior.registrados} de ${anterior.dias}`} />
+          <Comparacion titulo="Días cumplidos" ahora={pct(actual.cumplidos, actual.dias)} antes={pct(anterior.cumplidos, anterior.dias)}
+            detalle={`${actual.cumplidos} de ${actual.dias} · antes ${anterior.cumplidos} de ${anterior.dias}`} />
+          <Comparacion titulo="Calorías vs meta" ahora={actual.caloriasPct} antes={anterior.caloriasPct} objetivo={100}
+            detalle="Promedio de los días registrados" />
+          <Comparacion titulo="Proteína vs meta" ahora={actual.proteinaPct} antes={anterior.proteinaPct} objetivo={100}
+            detalle="Promedio de los días registrados" />
+        </div>
+      </section>
+
+      {/* Barras por semana */}
+      <section className="tarjeta">
+        <h2 className="font-semibold">Días por semana</h2>
+        <p className="mb-2 text-xs text-suave">Últimas 8 semanas, de lunes a domingo</p>
+        <Leyenda />
+        {hayDatos ? <BarrasSemanas semanas={semanas} /> : <Vacio>Cuando registres comidas, aquí verás tu constancia semana a semana.</Vacio>}
+      </section>
+
+      {/* Calendario */}
+      <section className="tarjeta">
+        <h2 className="mb-2 font-semibold">Calendario</h2>
+        <div className="grid grid-cols-[auto_repeat(7,minmax(0,1fr))] items-center gap-1.5">
+          <span />
+          {DIAS_SEMANA.map((d, i) => <span key={i} className="text-center text-[11px] text-suave">{d}</span>)}
+          {semanas.map((s) => (
+            <div key={s.lunes} className="contents">
+              <span className="pr-1 text-right text-[11px] text-suave tabular-nums">{fechaCorta(s.lunes)}</span>
+              {s.estados.map((e, i) => {
+                const f = sumarDias(s.lunes, i)
+                const d = porFecha.get(f)
+                const extra = d ? ` · ${fmt(d.calorias)} kcal, ${fmt(d.proteina_g)} g proteína` : ''
+                return <CeldaDia key={f} estado={estados.get(f) ?? e} hoy={f === hoy} futuro={f > hoy}
+                  etiqueta={`${NOMBRE_DIA.format(new Date(`${f}T12:00:00Z`))}: ${TEXTO_ESTADO[e]}${extra}`} />
+              })}
+            </div>
+          ))}
+        </div>
+        <div className="mt-3"><Leyenda conVacio /></div>
+      </section>
+
+      {/* Tabla (también es la vista accesible de los gráficos) */}
+      <section className="tarjeta overflow-x-auto">
+        <h2 className="mb-2 font-semibold">Detalle por semana</h2>
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-suave">
+            <tr>
+              <th className="py-1 font-normal">Semana</th>
+              <th className="text-right font-normal">Registr.</th>
+              <th className="text-right font-normal">Cumpl.</th>
+              <th className="text-right font-normal">Kcal</th>
+              <th className="text-right font-normal">Prot.</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-borde">
+            {[...semanas].reverse().map((s) => (
+              <tr key={s.lunes}>
+                <td className="py-1.5">{fechaCorta(s.lunes)}</td>
+                <td className="text-right tabular-nums">{s.registrados}/{s.dias}</td>
+                <td className="text-right tabular-nums">{s.cumplidos}/{s.dias}</td>
+                <td className="text-right tabular-nums">{s.caloriasPct === null ? '—' : `${s.caloriasPct} %`}</td>
+                <td className="text-right tabular-nums">{s.proteinaPct === null ? '—' : `${s.proteinaPct} %`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="mt-2 text-xs text-suave">
+          Registrado: al menos {REGLAS.seccionesMinimas} comidas. Cumplido: calorías entre 90 y 110 % de la meta y proteína desde 90 %.
+        </p>
+      </section>
+
+      {/* Peso */}
       <section className="tarjeta">
         <div className="mb-2 flex items-baseline justify-between">
           <h2 className="font-semibold">Peso</h2>
@@ -59,42 +133,25 @@ async function Contenido() {
         {pesos.length >= 2 ? <GraficoPeso pesos={pesos} /> : <Vacio>Registra tu peso al menos dos días para ver la evolución.</Vacio>}
       </section>
 
+      {/* Días */}
       <section className="tarjeta">
-        <h2 className="mb-2 font-semibold">Promedio por semana</h2>
-        {promedios.length === 0 ? <Vacio>Aún no hay registros.</Vacio> : (
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-suave">
-              <tr><th className="py-1 font-normal">Semana del</th><th className="font-normal">Días</th><th className="text-right font-normal">kcal/día</th><th className="text-right font-normal">Prot./día</th></tr>
-            </thead>
-            <tbody className="divide-y divide-borde">
-              {promedios.map((s) => (
-                <tr key={s.lunes}>
-                  <td className="py-1.5">{fechaCorta(s.lunes)}</td>
-                  <td>{s.dias}</td>
-                  <td className={`text-right tabular-nums ${desvio(s.calorias, objetivo.meta_calorias)}`}>{fmt(s.calorias)}</td>
-                  <td className="text-right tabular-nums">{fmt(s.proteina)} g</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        <p className="mt-2 text-xs text-suave">Meta actual: {fmt(objetivo.meta_calorias)} kcal y {fmt(objetivo.meta_proteina_g)} g de proteína.</p>
-      </section>
-
-      <section className="tarjeta">
-        <h2 className="mb-2 font-semibold">Días anteriores</h2>
+        <h2 className="mb-2 font-semibold">Últimos 30 días</h2>
         {dias.length === 0 ? <Vacio>Aún no hay registros.</Vacio> : (
           <ul className="divide-y divide-borde">
-            {dias.slice(0, 30).map((d) => {
-              const pct = Math.min(100, (d.calorias / objetivo.meta_calorias) * 100)
+            {dias.map((d) => {
+              const e = estados.get(d.fecha) ?? 'vacio'
+              const pctKcal = d.meta_calorias ? Math.min(100, (d.calorias / d.meta_calorias) * 100) : 0
               return (
                 <li key={d.fecha}>
                   <Link href={`/?fecha=${d.fecha}`} className="flex items-center gap-3 py-2 text-sm">
                     <span className="w-14 shrink-0 text-suave">{fechaCorta(d.fecha)}</span>
                     <span className="h-2 flex-1 overflow-hidden rounded-full bg-borde">
-                      <span className="block h-full rounded-full bg-acento" style={{ width: `${pct}%` }} />
+                      <span className="block h-full rounded-full bg-acento" style={{ width: `${pctKcal}%` }} />
                     </span>
-                    <span className={`w-16 text-right tabular-nums ${desvio(d.calorias, objetivo.meta_calorias)}`}>{fmt(d.calorias)}</span>
+                    <span className="w-16 text-right tabular-nums">{fmt(d.calorias)}</span>
+                    <span className="w-5 text-center text-xs" title={TEXTO_ESTADO[e]} aria-label={TEXTO_ESTADO[e]}>
+                      {e === 'cumplido' ? <b className="text-racha-cumplido">✓</b> : e === 'registrado' ? <b className="text-racha-registro">•</b> : ''}
+                    </span>
                   </Link>
                 </li>
               )
@@ -104,11 +161,6 @@ async function Contenido() {
       </section>
     </div>
   )
-}
-
-/** Rojo si se aleja más de 15 % de la meta. */
-function desvio(valor: number, meta: number) {
-  return Math.abs(valor - meta) / meta > 0.15 ? 'text-peligro' : ''
 }
 
 function GraficoPeso({ pesos }: { pesos: { fecha: string; kg: number }[] }) {
@@ -121,7 +173,6 @@ function GraficoPeso({ pesos }: { pesos: { fecha: string; kg: number }[] }) {
   const linea = pesos.map((p, i) => `${i ? 'L' : 'M'}${x(p.fecha).toFixed(1)},${y(p.kg).toFixed(1)}`).join(' ')
   const ultimo = pesos.at(-1)!
   const cambio = ultimo.kg - pesos[0].kg
-
   return (
     <figure>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`Peso de ${pesos[0].kg} a ${ultimo.kg} kg`}>
@@ -132,7 +183,7 @@ function GraficoPeso({ pesos }: { pesos: { fecha: string; kg: number }[] }) {
           </g>
         ))}
         <path d={linea} fill="none" stroke="var(--acento)" strokeWidth="2" strokeLinejoin="round" />
-        {pesos.map((p) => <circle key={p.fecha} cx={x(p.fecha)} cy={y(p.kg)} r="2.5" fill="var(--acento)"><title>{`${fechaCorta(p.fecha)}: ${p.kg} kg`}</title></circle>)}
+        {pesos.map((p) => <circle key={p.fecha} cx={x(p.fecha)} cy={y(p.kg)} r="4" fill="var(--acento)" stroke="var(--superficie)" strokeWidth="2"><title>{`${fechaCorta(p.fecha)}: ${p.kg} kg`}</title></circle>)}
         <text x={M.l} y={H - 4} fontSize="9" fill="var(--suave)">{fechaCorta(pesos[0].fecha)}</text>
         <text x={W - M.r} y={H - 4} fontSize="9" fill="var(--suave)" textAnchor="end">{fechaCorta(ultimo.fecha)}</text>
       </svg>

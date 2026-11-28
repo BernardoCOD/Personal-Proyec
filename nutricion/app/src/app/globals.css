@@ -12,6 +12,9 @@
   --carbos: #d89a1e;
   --grasas: #3c78c3;
   --peligro: #c23b3b;
+  /* Rachas (validados para daltonismo: ΔE 10.5 claro / 10 oscuro) */
+  --racha-registro: #d89a1e;
+  --racha-cumplido: #2f8f4e;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -27,6 +30,8 @@
     --carbos: #e8b443;
     --grasas: #6aa2e8;
     --peligro: #ef6b6b;
+    --racha-registro: #d18c1f;
+    --racha-cumplido: #279a7a;
   }
 }
 
@@ -42,6 +47,8 @@
   --color-carbos: var(--carbos);
   --color-grasas: var(--grasas);
   --color-peligro: var(--peligro);
+  --color-racha-registro: var(--racha-registro);
+  --color-racha-cumplido: var(--racha-cumplido);
   --font-sans: var(--font-geist-sans);
 }
 

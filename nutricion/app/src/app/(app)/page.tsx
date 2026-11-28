@@ -3,6 +3,9 @@ import { Suspense } from 'react'
 import { AnilloCalorias, BarraMacro, fmt, NOMBRE_OBJETIVO, Vacio } from '@/componentes/ui'
 import { datosRegistrados } from '@/lib/datos'
 import { esFechaValida, fechaLarga, horaEnZona, rangoDelDia, sumarDias } from '@/lib/fechas'
+import { ChipsRacha } from '@/componentes/racha'
+import { cargarProgreso } from '@/lib/progreso'
+import { REGLAS } from '@/lib/racha'
 import { eliminarActividad, eliminarItem } from './acciones'
 
 export default function PaginaHoy({ searchParams }: PageProps<'/'>) {
@@ -41,7 +44,7 @@ async function Panel({ searchParams }: { searchParams: PageProps<'/'>['searchPar
   const fecha = esFechaValida(sp.fecha) ? sp.fecha : hoy
   const { desde, hasta } = rangoDelDia(fecha, zona)
 
-  const [comidasR, actividadesR, pesoR] = await Promise.all([
+  const [comidasR, actividadesR, pesoR, progreso] = await Promise.all([
     supabase.from('comidas')
       .select('id, fecha_hora, tipo, notas, comida_items(id, nombre_alimento, cantidad, unidad, gramos, calorias, proteina_g, carbohidratos_g, grasa_g)')
       .gte('fecha_hora', desde).lt('fecha_hora', hasta)
@@ -49,6 +52,7 @@ async function Panel({ searchParams }: { searchParams: PageProps<'/'>['searchPar
     supabase.from('actividades').select('id, fecha_hora, tipo, duracion_min, intensidad, calorias_estimadas')
       .gte('fecha_hora', desde).lt('fecha_hora', hasta).order('fecha_hora'),
     supabase.from('mediciones_peso').select('peso_kg').eq('fecha', fecha).maybeSingle(),
+    cargarProgreso(supabase, hoy, 1),
   ])
   if (comidasR.error) throw new Error(comidasR.error.message)
   const comidas = (comidasR.data ?? []) as Comida[]
@@ -89,6 +93,17 @@ async function Panel({ searchParams }: { searchParams: PageProps<'/'>['searchPar
           ? <Link href={`/?fecha=${sumarDias(fecha, 1)}`} className="boton-secundario px-3" aria-label="Día siguiente">›</Link>
           : <span className="w-[42px]" />}
       </header>
+
+      {esHoy && (
+        <div className="space-y-1.5">
+          <ChipsRacha registro={progreso.registro.actual} cumplimiento={progreso.cumplimiento.actual} />
+          {!progreso.registro.hoyCuenta && (
+            <p className="text-center text-xs text-suave">
+              Registra al menos {REGLAS.seccionesMinimas} comidas hoy para {progreso.registro.actual > 0 ? 'mantener tu racha' : 'empezar una racha'} 🔥
+            </p>
+          )}
+        </div>
+      )}
 
       <section className="tarjeta">
         <div className="flex items-center gap-4">
