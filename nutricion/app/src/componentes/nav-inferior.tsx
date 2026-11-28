@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 const ENLACES = [
   { href: '/', nombre: 'Hoy', icono: 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10' },
   { href: '/registrar', nombre: 'Registrar', icono: 'M12 5v14M5 12h14' },
-  { href: '/historial', nombre: 'Historial', icono: 'M4 19V9m6 10V5m6 14v-7m4 7H2' },
+  { href: '/historial', nombre: 'Progreso', icono: 'M4 19V9m6 10V5m6 14v-7m4 7H2' },
   { href: '/perfil', nombre: 'Perfil', icono: 'M12 12a4 4 0 100-8 4 4 0 000 8zm-7 9a7 7 0 0114 0' },
 ] as const
 

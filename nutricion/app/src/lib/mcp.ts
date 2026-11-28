@@ -5,6 +5,8 @@ import { z } from 'zod'
 import { calcularPlan, caloriasActividad, OBJETIVOS } from './calculos'
 import { esFechaValida, fechaEnZona, rangoDelDia, sumarDias, ZONA_POR_DEFECTO } from './fechas'
 import { configSupabase } from './supabase/config'
+import { cargarProgreso } from './progreso'
+import { TEXTO_REGLAS } from './racha'
 import {
   borrarItem, buscar, cambiarCantidad, ErrorUsuario, guardarComida, itemCatalogo, itemManual, TIPOS_COMIDA, type Ctx,
 } from './servicio'
@@ -22,7 +24,7 @@ Cuando el usuario cuente qué comió:
 3. Si la cantidad es ambigua y cambia mucho las calorías, pregunta antes de registrar. Si el usuario no da hora, usa la actual; si no dice el tipo, dedúcelo de la hora.
 4. Para platos sin porción en el catálogo, estima los gramos (un plato de fondo suele pesar 350-450 g) y dilo.
 5. Si algo no está en el catálogo, regístralo con valores estimados (alimento manual) y avisa que son aproximados.
-6. Registra todo con registrar_comida y luego muestra un resumen breve con resumen_dia (consumido vs. meta y lo que falta).
+6. Registra todo con registrar_comida y luego muestra un resumen breve con resumen_dia (consumido vs. meta, lo que falta y la racha; celebra las rachas y anima si hoy aún no suma).
 Responde siempre en español.`
 
 function cliente(token: string): SupabaseClient {
@@ -112,6 +114,7 @@ async function resumenDia(ctx: Ctx & { hoy: string }, fecha: string) {
       s.items.push({ item_id: i.id, alimento: i.nombre_alimento, cantidad: `${r1(i.cantidad)} ${i.unidad}`, gramos: r1(i.gramos), kcal: r1(i.calorias) })
     }
   }
+  const progreso = fecha === ctx.hoy ? await cargarProgreso(supabase, ctx.hoy, 1) : null
   const o = objetivo.data
   const meta = o ? { calorias: o.meta_calorias, proteina_g: Number(o.meta_proteina_g), carbohidratos_g: Number(o.meta_carbohidratos_g), grasa_g: Number(o.meta_grasas_g) } : null
   return {
@@ -126,6 +129,12 @@ async function resumenDia(ctx: Ctx & { hoy: string }, fecha: string) {
     comidas: Object.fromEntries(TIPOS_COMIDA.map((t) => [t, porTipo[t] ? { ...porTipo[t], calorias: r1(porTipo[t].calorias) } : null])),
     actividades: (actividades.data ?? []).map((a) => ({ actividad_id: a.id, tipo: a.tipo, duracion_min: a.duracion_min, intensidad: a.intensidad, kcal: a.calorias_estimadas })),
     peso_kg: peso.data ? Number(peso.data.peso_kg) : null,
+    racha: progreso ? {
+      dias_registrando: progreso.registro.actual,
+      dias_cumpliendo_metas: progreso.cumplimiento.actual,
+      hoy_ya_suma: progreso.registro.hoyCuenta,
+      regla: `Registrado: ${TEXTO_REGLAS.registrado}. Cumplido: ${TEXTO_REGLAS.cumplido}.`,
+    } : null,
   }
 }
 

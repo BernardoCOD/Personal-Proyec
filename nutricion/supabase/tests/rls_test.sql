@@ -50,6 +50,17 @@ do $$ begin
     'el resumen diario suma las calorías del día (hora de Lima)';
 end $$;
 
+-- Resumen por día (rachas y progreso).
+do $$
+declare d record;
+begin
+  select * into d from public.dias_resumen('2026-11-20', '2026-11-30');
+  assert d.fecha = '2026-11-25' and d.secciones = 1 and d.calorias = 260, 'dias_resumen: día, comidas y kcal';
+  assert d.meta_calorias = 2200 and d.meta_proteina_g = 120, 'dias_resumen: metas de la etapa vigente';
+  assert (select count(*) from public.dias_resumen('2026-11-26', '2026-11-30')) = 0, 'dias_resumen: fuera de rango';
+  assert (select count(*) from public.dias_resumen('2025-01-01', '2026-11-30')) = 0, 'dias_resumen: máximo 400 días';
+end $$;
+
 -- Búsqueda (Fase 3): sin tildes, varias palabras, respeta RLS y orden.
 reset role;
 insert into public.alimentos (usuario_id, nombre, calorias, fuente, codigo_fuente) values
@@ -100,6 +111,7 @@ do $$ begin
   assert (select count(*) from public.alimentos) = 1 + 3, 'Beto solo ve el catálogo, no el alimento de Ana';
   assert (select count(*) from public.porciones) = 1, 'Beto no ve las porciones del alimento de Ana';
   assert (select count(*) from public.resumen_diario) = 0, 'Beto no ve el resumen de Ana';
+  assert (select count(*) from public.dias_resumen('2026-11-01', '2026-11-30')) = 0, 'Beto no ve los días de Ana';
   assert (select count(*) from public.buscar_alimentos('batido')) = 0, 'Beto no encuentra el alimento de Ana';
   assert (select count(*) from public.buscar_alimentos('platano')) = 1, 'Beto sí ve el catálogo';
 end $$;
