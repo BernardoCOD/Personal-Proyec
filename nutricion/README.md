@@ -158,6 +158,12 @@ Desde el celular, en la app de Claude puedes usar el **modo de voz** o mandar un
 
 **Entregable de la Fase 4:** le digo a Claude lo que comí y aparece en la app. ✅
 
+## Extras: rachas, progreso y fotos
+
+- **Rachas 🔥:** días seguidos registrando (al menos 3 comidas) y cumpliendo metas (calorías ±10 %, proteína desde 90 %, carbohidratos y grasas ±15 %). Las reglas están en `app/src/lib/racha.ts`.
+- **Progreso:** comparación de esta semana con la anterior, barras de 8 semanas, calendario, peso y últimos días.
+- **Fotos de progreso:** se guardan en el bucket **privado** `fotos-progreso` de Supabase Storage, dentro de la carpeta del usuario. Solo él puede verlas, subirlas o borrarlas (RLS), y se muestran con enlaces temporales de 1 hora. Antes de subirse se reducen a 1600 px y se les quitan los datos ocultos (GPS). Se pueden comparar lado a lado o con un deslizador, y la app sugiere una foto nueva cada 4 semanas. Claude puede verlas con `ver_fotos_progreso`, solo si el usuario se lo pide.
+
 ## Próximo paso: Fase 5
 
 > Vamos con la Fase 5 del plan: etapas con fecha que cambian solas, ajuste semanal según la evolución del peso, recomendaciones de comidas según lo que falta del día y sugerencias básicas de entrenamiento.

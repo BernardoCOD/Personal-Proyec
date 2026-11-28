@@ -7,12 +7,11 @@ import { Registrar } from './registrar'
 
 const TIPOS_COMIDA = ['desayuno', 'almuerzo', 'cena', 'snack']
 
-export const metadata: Metadata = { title: 'Registrar' }
+export const metadata: Metadata = { title: 'Buscar' }
 
 export default function PaginaRegistrar({ searchParams }: PageProps<'/registrar'>) {
   return (
     <>
-      <h1 className="mb-4 text-xl font-bold">Registrar</h1>
       <Suspense fallback={<p className="text-suave">Cargando…</p>}>
         <Contenido searchParams={searchParams} />
       </Suspense>
@@ -25,7 +24,10 @@ async function Contenido({ searchParams }: { searchParams: PageProps<'/registrar
   const fecha = esFechaValida(sp.fecha) && sp.fecha <= hoy ? sp.fecha : hoy
   const pestana = sp.tipo === 'actividad' || sp.tipo === 'peso' ? sp.tipo : 'comida'
   const tipoComida = typeof sp.comida === 'string' && TIPOS_COMIDA.includes(sp.comida) ? sp.comida : ''
+  const titulo = pestana === 'actividad' ? 'Agregar ejercicio' : pestana === 'peso' ? 'Actualizar peso' : 'Buscar'
   return (
+    <>
+    <h1 className="mb-4 text-2xl font-bold">{titulo}</h1>
     <Registrar
       pestanaInicial={pestana}
       tipoComida={tipoComida}
@@ -36,6 +38,7 @@ async function Contenido({ searchParams }: { searchParams: PageProps<'/registrar
       pesoKg={ultimoPeso.pesoKg}
       recientes={recientes}
     />
+    </>
   )
 }
 

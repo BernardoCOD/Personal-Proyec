@@ -83,7 +83,7 @@ export function Escaner({ onDetectado, onCerrar }: { onDetectado: (codigo: strin
         <input inputMode="numeric" pattern="\d*" placeholder="o escribe el código: 7750…" value={manual}
           onChange={(e) => setManual(e.target.value.replace(/\D/g, ''))}
           className="min-w-0 flex-1 rounded-xl bg-white/10 px-3 py-2.5 text-white placeholder:text-white/50 outline-none ring-1 ring-white/30" />
-        <button className="rounded-xl bg-[var(--acento)] px-4 font-semibold text-white disabled:opacity-50" disabled={manual.length < 6}>Buscar</button>
+        <button className="rounded-xl bg-[var(--acento)] px-4 font-semibold text-[var(--sobre-acento)] disabled:opacity-50" disabled={manual.length < 6}>Buscar</button>
       </form>
     </div>
   )

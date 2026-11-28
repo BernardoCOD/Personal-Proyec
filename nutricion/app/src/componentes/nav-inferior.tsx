@@ -3,12 +3,17 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+// Tres pestañas: Plan (el día), Buscar (registrar alimentos) y Progreso
+// (resumen, peso y fotos). El perfil se abre desde el botón del encabezado.
 const ENLACES = [
-  { href: '/', nombre: 'Hoy', icono: 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10' },
-  { href: '/registrar', nombre: 'Registrar', icono: 'M12 5v14M5 12h14' },
-  { href: '/historial', nombre: 'Progreso', icono: 'M4 19V9m6 10V5m6 14v-7m4 7H2' },
-  { href: '/perfil', nombre: 'Perfil', icono: 'M12 12a4 4 0 100-8 4 4 0 000 8zm-7 9a7 7 0 0114 0' },
+  { href: '/', nombre: 'Plan', rutas: ['/', '/item'], icono: 'M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h5' },
+  { href: '/registrar', nombre: 'Buscar', rutas: ['/registrar'], icono: 'M11 18a7 7 0 100-14 7 7 0 000 14zM21 21l-5-5' },
+  { href: '/historial', nombre: 'Progreso', rutas: ['/historial', '/fotos'], icono: 'M5 20V11M12 20V5M19 20v-7' },
 ] as const
+
+function activo(ruta: string, rutas: readonly string[]) {
+  return rutas.some((r) => (r === '/' ? ruta === '/' : ruta === r || ruta.startsWith(`${r}/`)))
+}
 
 export function NavInferior() {
   return <Nav ruta={usePathname()} />
@@ -17,15 +22,15 @@ export function NavInferior() {
 /** La misma barra sin leer la URL (mientras carga, en rutas dinámicas). */
 export function Nav({ ruta }: { ruta: string }) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-borde bg-superficie/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:static md:mb-6 md:rounded-2xl md:border">
-      <ul className="mx-auto grid max-w-lg grid-cols-4">
+    <nav className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:static md:mb-6 md:px-0 md:pb-0">
+      <ul className="mx-auto grid max-w-sm grid-cols-3 gap-1 rounded-2xl border border-borde bg-superficie/95 p-1.5 shadow-lg shadow-black/10 backdrop-blur">
         {ENLACES.map((e) => {
-          const activo = e.href === '/' ? ruta === '/' : ruta.startsWith(e.href)
+          const si = activo(ruta, e.rutas)
           return (
             <li key={e.href}>
-              <Link href={e.href} aria-current={activo ? 'page' : undefined}
-                className={`flex flex-col items-center gap-0.5 py-2 text-xs ${activo ? 'font-semibold text-acento' : 'text-suave'}`}>
-                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={activo ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <Link href={e.href} aria-current={si ? 'page' : undefined}
+                className={`flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-xs transition ${si ? 'bg-acento-suave font-semibold text-acento' : 'text-suave'}`}>
+                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={si ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d={e.icono} />
                 </svg>
                 {e.nombre}

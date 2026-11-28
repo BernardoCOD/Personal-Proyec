@@ -136,6 +136,34 @@ exception when check_violation then null;
 end $$;
 delete from public.alimentos where codigo_barras = '7750885006513';
 
+-- Fotos de progreso: cada uno solo ve y sube en su carpeta.
+reset role;
+insert into storage.objects (bucket_id, name, owner) values ('fotos-progreso', '11111111-1111-1111-1111-111111111111/a.jpg', '11111111-1111-1111-1111-111111111111');
+insert into public.fotos_progreso (usuario_id, fecha, ruta) values ('11111111-1111-1111-1111-111111111111', '2026-11-01', '11111111-1111-1111-1111-111111111111/a.jpg');
+set role authenticated;
+do $$ begin perform set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false); end $$;
+do $$ begin
+  assert (select count(*) from public.fotos_progreso) = 0, 'Beto no ve las fotos de Ana';
+  assert (select count(*) from storage.objects where bucket_id = 'fotos-progreso') = 0, 'Beto no ve los archivos de Ana';
+end $$;
+insert into storage.objects (bucket_id, name) values ('fotos-progreso', '22222222-2222-2222-2222-222222222222/b.jpg');
+insert into public.fotos_progreso (fecha, ruta) values ('2026-11-02', '22222222-2222-2222-2222-222222222222/b.jpg');
+do $$ begin
+  assert (select count(*) from public.fotos_progreso) = 1, 'Beto ve su propia foto';
+  insert into storage.objects (bucket_id, name) values ('fotos-progreso', '11111111-1111-1111-1111-111111111111/intruso.jpg');
+  raise exception 'Beto no debe subir archivos en la carpeta de Ana';
+exception when insufficient_privilege then null;
+end $$;
+do $$ begin
+  insert into public.fotos_progreso (fecha, ruta) values ('2026-11-02', '11111111-1111-1111-1111-111111111111/x.jpg');
+  raise exception 'la ruta debe estar en la carpeta del propio usuario';
+exception when check_violation then null;
+end $$;
+do $$ begin
+  delete from storage.objects where name = '11111111-1111-1111-1111-111111111111/a.jpg';
+  assert not found, 'Beto no puede borrar el archivo de Ana';
+end $$;
+
 -- Beto no puede editar ni borrar datos de Ana.
 do $$ begin
   update public.perfiles set nombre = 'hackeado' where id = '11111111-1111-1111-1111-111111111111';

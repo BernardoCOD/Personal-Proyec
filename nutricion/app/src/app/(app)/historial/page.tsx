@@ -3,10 +3,13 @@ import Link from 'next/link'
 import { Suspense } from 'react'
 import { BarrasSemanas, Comparacion, Leyenda, pct, TarjetaRacha } from '@/componentes/progreso'
 import { CeldaDia, TEXTO_ESTADO } from '@/componentes/racha'
+import { TabsProgreso } from '@/componentes/tabs-progreso'
+import { NOMBRE_OBJETIVO } from '@/componentes/ui'
 import { fmt, Vacio } from '@/componentes/ui'
 import { datosRegistrados } from '@/lib/datos'
 import { fechaCorta, sumarDias } from '@/lib/fechas'
 import { cargarProgreso } from '@/lib/progreso'
+import { proximaFoto } from '@/lib/fotos'
 import { REGLAS, TEXTO_REGLAS } from '@/lib/racha'
 
 export const metadata: Metadata = { title: 'Progreso' }
@@ -14,7 +17,7 @@ export const metadata: Metadata = { title: 'Progreso' }
 export default function PaginaProgreso() {
   return (
     <>
-      <h1 className="mb-4 text-xl font-bold">Progreso</h1>
+      <TabsProgreso actual="resumen" />
       <Suspense fallback={<p className="text-suave">Cargando…</p>}>
         <Contenido />
       </Suspense>
@@ -26,10 +29,11 @@ const DIAS_SEMANA = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 const NOMBRE_DIA = new Intl.DateTimeFormat('es-PE', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 
 async function Contenido() {
-  const { supabase, hoy } = await datosRegistrados()
-  const [progreso, pesosR] = await Promise.all([
+  const { supabase, hoy, objetivo, ultimoPeso } = await datosRegistrados()
+  const [progreso, pesosR, fotosR] = await Promise.all([
     cargarProgreso(supabase, hoy, 8),
     supabase.from('mediciones_peso').select('fecha, peso_kg').gte('fecha', sumarDias(hoy, -180)).order('fecha'),
+    supabase.from('fotos_progreso').select('fecha'),
   ])
   const { registro, cumplimiento, semanas, porFecha, estados } = progreso
   const actual = semanas[semanas.length - 1]
@@ -37,9 +41,32 @@ async function Contenido() {
   const pesos = (pesosR.data ?? []).map((p) => ({ fecha: p.fecha as string, kg: Number(p.peso_kg) }))
   const dias = [...porFecha.values()].filter((d) => d.fecha >= sumarDias(hoy, -29)).sort((a, b) => b.fecha.localeCompare(a.fecha))
   const hayDatos = porFecha.size > 0
+  const foto = proximaFoto((fotosR.data ?? []) as { fecha: string }[], hoy)
+  // Peso al empezar la etapa (el último registrado antes o ese día; si no, el primero de la lista).
+  const inicioEtapa = [...pesos].reverse().find((p) => p.fecha <= objetivo.fecha_inicio) ?? pesos[0]
+  const cambioEtapa = inicioEtapa ? ultimoPeso.pesoKg - inicioEtapa.kg : null
 
   return (
     <div className="space-y-4">
+      {/* Peso y objetivo */}
+      <section className="tarjeta">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-suave">Objetivo</p>
+            <p className="text-lg font-semibold">{NOMBRE_OBJETIVO[objetivo.tipo]}</p>
+            <p className="text-xs text-suave">Desde el {fechaCorta(objetivo.fecha_inicio)}{objetivo.fecha_fin ? ` hasta el ${fechaCorta(objetivo.fecha_fin)}` : ''}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-3xl font-bold tabular-nums">{fmt(ultimoPeso.pesoKg, 1)}<span className="text-base font-medium text-suave"> kg</span></p>
+            <p className="text-xs text-suave">
+              {cambioEtapa === null || Math.abs(cambioEtapa) < 0.05 ? 'Sin cambios en esta etapa'
+                : `${cambioEtapa > 0 ? '+' : ''}${fmt(cambioEtapa, 1)} kg en esta etapa`}
+            </p>
+          </div>
+        </div>
+        <Link href="/registrar?tipo=peso" className="boton mt-3 w-full">+ Actualizar peso</Link>
+      </section>
+
       {/* Rachas */}
       <section className="grid grid-cols-2 gap-3" aria-label="Rachas">
         <TarjetaRacha tipo="registro" titulo="Registrando" racha={registro}
@@ -47,6 +74,17 @@ async function Contenido() {
         <TarjetaRacha tipo="cumplimiento" titulo="Cumpliendo metas" racha={cumplimiento}
           ayuda={cumplimiento.hoyCuenta ? 'Hoy ya suma' : 'Kcal y macros dentro de tus metas'} />
       </section>
+
+      {foto.toca && (
+        <Link href="/fotos" className="tarjeta flex items-center gap-3 border-acento">
+          <span className="text-2xl" aria-hidden>📸</span>
+          <span className="flex-1 text-sm">
+            <b>{(fotosR.data ?? []).length === 0 ? 'Toma tu primera foto de progreso' : '¡Toca tu foto de progreso!'}</b>
+            <span className="block text-suave">Compararla con la anterior te ayuda a ver cambios que la báscula no muestra.</span>
+          </span>
+          <span className="text-acento" aria-hidden>›</span>
+        </Link>
+      )}
 
       {/* Esta semana vs la anterior */}
       <section className="tarjeta">

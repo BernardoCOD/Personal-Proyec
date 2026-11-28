@@ -2,7 +2,7 @@
 // - Archivos estáticos (_next/static, iconos): primero caché.
 // - Páginas: siempre de la red (los datos son personales y cambian);
 //   sin conexión se muestra /offline.html.
-const VERSION = 'nutri-v1'
+const VERSION = 'nutri-v2'
 const OFFLINE = '/offline.html'
 
 self.addEventListener('install', (event) => {

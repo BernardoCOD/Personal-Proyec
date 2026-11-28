@@ -7,6 +7,7 @@ import { esFechaValida, fechaEnZona, rangoDelDia, sumarDias, ZONA_POR_DEFECTO } 
 import { configSupabase } from './supabase/config'
 import { cargarProgreso } from './progreso'
 import { TEXTO_REGLAS } from './racha'
+import { BUCKET_FOTOS, diasEntre, parInicial, type FotoInfo } from './fotos'
 import {
   borrarItem, buscar, cambiarCantidad, ErrorUsuario, guardarComida, itemCatalogo, itemManual, TIPOS_COMIDA, type Ctx,
 } from './servicio'
@@ -59,17 +60,22 @@ async function contexto(auth: AuthInfo | undefined): Promise<Ctx & { hoy: string
   return { supabase, usuarioId, zona, hoy: fechaEnZona(new Date(), zona) }
 }
 
-type Resultado = { content: { type: 'text'; text: string }[]; isError?: boolean }
+type Contenido = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
+type Resultado = { content: Contenido[]; isError?: boolean }
 
 function ok(datos: unknown): Resultado {
   return { content: [{ type: 'text', text: JSON.stringify(datos, null, 2) }] }
 }
 
+/** Marca para devolver contenido MCP tal cual (p. ej. imágenes) en vez de JSON. */
+class Directo { constructor(readonly content: Contenido[]) {} }
+
 /** Ejecuta una herramienta con el contexto del usuario y convierte los errores en mensajes claros. */
 function con<A>(fn: (args: A, ctx: Ctx & { hoy: string }) => Promise<unknown>) {
   return async (args: A, extra: { http?: { authInfo?: AuthInfo } }): Promise<Resultado> => {
     try {
-      return ok(await fn(args, await contexto(extra.http?.authInfo)))
+      const r = await fn(args, await contexto(extra.http?.authInfo))
+      return r instanceof Directo ? { content: r.content } : ok(r)
     } catch (e) {
       const msg = e instanceof ErrorUsuario ? e.message : `Error inesperado: ${(e as Error).message}`
       return { content: [{ type: 'text', text: msg }], isError: true }
@@ -289,6 +295,63 @@ export function registrarHerramientas(server: McpServer) {
     })
     if (error) throw new ErrorUsuario(`No se pudo guardar: ${error.message}`)
     return { nueva_etapa: OBJETIVOS.find((o) => o.valor === objetivo)?.nombre, desde: hoy, semanas: semanas || null, gasto_diario_kcal: plan.gasto, metas: plan.metas }
+  }))
+}
+
+// ---------------------------------------------------------------------
+// Fotos de progreso (privadas). Claude solo las ve cuando el usuario lo pide.
+// ---------------------------------------------------------------------
+type FilaFoto = FotoInfo & { ruta: string; notas: string | null }
+
+async function listarFotos(supabase: SupabaseClient): Promise<FilaFoto[]> {
+  const { data, error } = await supabase.from('fotos_progreso').select('id, fecha, vista, ruta, peso_kg, notas').order('fecha')
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((f) => ({ ...f, vista: f.vista as FotoInfo['vista'], peso_kg: f.peso_kg === null ? null : Number(f.peso_kg) }))
+}
+
+export function registrarHerramientasFotos(server: McpServer) {
+  server.registerTool('listar_fotos_progreso', {
+    title: 'Listar fotos de progreso',
+    description: 'Lista las fotos de progreso del usuario (fecha, vista, peso de ese día, notas) sin mostrarlas. Usa los foto_id con ver_fotos_progreso.',
+    inputSchema: z.object({}),
+    annotations: { readOnlyHint: true },
+  }, con(async (_: Record<string, never>, { supabase }) => {
+    const fotos = await listarFotos(supabase)
+    return fotos.map((f) => ({ foto_id: f.id, fecha: f.fecha, vista: f.vista, peso_kg: f.peso_kg, notas: f.notas }))
+  }))
+
+  server.registerTool('ver_fotos_progreso', {
+    title: 'Ver y comparar fotos de progreso',
+    description: 'Devuelve hasta 2 fotos de progreso del usuario para describir o comparar su cambio físico (antes y después). Sin ids, usa la primera y la última de la misma vista. Úsala SOLO si el usuario pide ver o comparar sus fotos. Sé respetuoso y motivador, enfócate en cambios visibles (postura, cintura, definición, volumen) y recuerda que en menos de 4 semanas los cambios son pequeños.',
+    inputSchema: z.object({ foto_ids: z.array(z.uuid()).min(1).max(2).optional() }),
+    annotations: { readOnlyHint: true },
+  }, con(async ({ foto_ids }: { foto_ids?: string[] }, { supabase }) => {
+    const todas = await listarFotos(supabase)
+    if (todas.length === 0) throw new ErrorUsuario('Aún no hay fotos de progreso. Se suben desde la pestaña Fotos de la app.')
+    let elegidas: FilaFoto[]
+    if (foto_ids?.length) {
+      elegidas = foto_ids.map((id) => todas.find((f) => f.id === id)).filter((f): f is FilaFoto => Boolean(f))
+      if (elegidas.length !== foto_ids.length) throw new ErrorUsuario('Alguna de esas fotos no existe.')
+    } else {
+      const par = parInicial(todas)
+      elegidas = par ? [par.antes, par.despues].map((p) => todas.find((f) => f.id === p.id)!) : [todas[todas.length - 1]]
+    }
+    elegidas.sort((a, b) => a.fecha.localeCompare(b.fecha))
+    const contenido: Contenido[] = []
+    for (const [i, f] of elegidas.entries()) {
+      const { data, error } = await supabase.storage.from(BUCKET_FOTOS).download(f.ruta)
+      if (error || !data) throw new ErrorUsuario(`No se pudo leer la foto del ${f.fecha}.`)
+      const etiqueta = elegidas.length === 2 ? (i === 0 ? 'ANTES' : 'DESPUÉS') : 'FOTO'
+      contenido.push({ type: 'text', text: `${etiqueta}: ${f.fecha}, vista ${f.vista}${f.peso_kg !== null ? `, ${f.peso_kg} kg` : ''}${f.notas ? `, nota: ${f.notas}` : ''}` })
+      contenido.push({ type: 'image', data: Buffer.from(await data.arrayBuffer()).toString('base64'), mimeType: data.type || 'image/jpeg' })
+    }
+    if (elegidas.length === 2) {
+      const [a, b] = elegidas
+      const dias = diasEntre(a.fecha, b.fecha)
+      const peso = a.peso_kg !== null && b.peso_kg !== null ? `, cambio de peso ${(b.peso_kg - a.peso_kg).toFixed(1)} kg` : ''
+      contenido.push({ type: 'text', text: `Entre ambas fotos: ${dias} días${peso}.${a.vista !== b.vista ? ' Atención: son vistas distintas.' : ''}` })
+    }
+    return new Directo(contenido)
   }))
 }
 
