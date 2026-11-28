@@ -1,5 +1,6 @@
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { useActionState, useState } from 'react'
 import { crearCuenta, iniciarSesion, type EstadoLogin } from './acciones'
 
@@ -9,6 +10,8 @@ export function FormularioLogin() {
   const [estadoCrear, crear, creando] = useActionState(crearCuenta, {} as EstadoLogin)
   const estado = modo === 'entrar' ? estadoEntrar : estadoCrear
   const pendiente = entrando || creando
+  const volver = useSearchParams().get('volver') ?? ''
+  const deClaude = volver.startsWith('/oauth/')
 
   return (
     <div className="tarjeta">
@@ -25,7 +28,11 @@ export function FormularioLogin() {
         ))}
       </div>
 
+      {deClaude && (
+        <p className="mb-3 rounded-xl bg-acento-suave p-3 text-sm text-acento">Inicia sesión para conectar Claude con tu cuenta de Nutri.</p>
+      )}
       <form action={modo === 'entrar' ? entrar : crear} className="space-y-3" key={modo}>
+        <input type="hidden" name="volver" value={volver} />
         {modo === 'crear' && (
           <div>
             <label className="etiqueta" htmlFor="nombre">Nombre</label>

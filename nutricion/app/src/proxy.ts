@@ -1,8 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { rutaSegura } from './lib/volver'
 
 // Rutas que se pueden abrir sin iniciar sesión.
-const PUBLICAS = ['/login', '/auth/']
+// /api/mcp y /.well-known/ son del conector de Claude: tienen su propia autenticación (OAuth).
+const PUBLICAS = ['/login', '/auth/', '/api/mcp', '/.well-known/']
 
 /**
  * Renueva la sesión de Supabase en cada petición (las cookies caducan)
@@ -37,12 +39,13 @@ export async function proxy(request: NextRequest) {
     const destino = request.nextUrl.clone()
     destino.pathname = '/login'
     destino.search = ''
+    // Después de iniciar sesión se vuelve aquí (p. ej., a la pantalla de permiso de Claude).
+    if (ruta !== '/') destino.searchParams.set('volver', ruta + request.nextUrl.search)
     return copiarCookies(respuesta, NextResponse.redirect(destino))
   }
   if (conSesion && ruta === '/login') {
-    const destino = request.nextUrl.clone()
-    destino.pathname = '/'
-    destino.search = ''
+    const volver = rutaSegura(request.nextUrl.searchParams.get('volver'))
+    const destino = new URL(volver ?? '/', request.url)
     return copiarCookies(respuesta, NextResponse.redirect(destino))
   }
   return respuesta

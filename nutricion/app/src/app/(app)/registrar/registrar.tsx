@@ -1,13 +1,18 @@
 'use client'
 
-import { useActionState, useEffect, useState, useTransition } from 'react'
+import { useActionState, useCallback, useEffect, useState, useSyncExternalStore, useTransition } from 'react'
 import { caloriasActividad, type Intensidad } from '@/lib/calculos'
 import { desfaseZona } from '@/lib/fechas'
 import { aGramos, esUnidadFija, macrosDeGramos, UNIDADES_FIJAS } from '@/lib/unidades'
 import { cantidadInicial, interpretarBusqueda } from '@/lib/busqueda'
 import { fmt } from '@/componentes/ui'
+import { crearDictado, Escaner } from '@/componentes/escaner'
+import type { ProductoEtiqueta } from '@/lib/open-food-facts'
 import {
   buscarAlimentos,
+  buscarPorCodigo,
+  guardarProducto,
+  type ResultadoCodigo,
   registrarActividad,
   registrarComida,
   registrarPeso,
@@ -196,6 +201,33 @@ function Buscador({ onAgregar, onManual, recientes, enLaComida, nombreComida }: 
   const [buscando, iniciar] = useTransition()
   const [abierto, setAbierto] = useState<{ id: string; cantidad: string; unidad: string } | null>(null)
   const [aviso, setAviso] = useState('')
+  const [escaneando, setEscaneando] = useState(false)
+  const [escaneo, setEscaneo] = useState<ResultadoCodigo | { tipo: 'consultando'; codigo: string } | null>(null)
+  const [escuchando, setEscuchando] = useState(false)
+  // El dictado solo existe en el navegador: se consulta sin romper la hidratación.
+  const hayDictado = useSyncExternalStore(() => () => {}, () => crearDictado() !== null, () => false)
+
+  const alDetectar = useCallback(async (codigo: string) => {
+    setEscaneando(false)
+    setEscaneo({ tipo: 'consultando', codigo })
+    const r = await buscarPorCodigo(codigo)
+    setEscaneo(r)
+    if (r.tipo === 'mio') {
+      const ini = cantidadInicial({ cantidad: null, unidad: null }, r.alimento.porciones)
+      setAbierto({ id: r.alimento.id, cantidad: String(ini.cantidad), unidad: ini.unidad })
+    }
+  }, [])
+
+  const dictar = () => {
+    const r = crearDictado()
+    if (!r) return
+    r.onresult = (e) => { setQ(e.results[0][0].transcript); setAviso('') }
+    r.onerror = (e) => setAviso(e.error === 'not-allowed' ? 'Activa el permiso del micrófono para dictar.' : 'No te entendí, intenta de nuevo.')
+    r.onend = () => setEscuchando(false)
+    setEscuchando(true)
+    setEscaneo(null)
+    r.start()
+  }
 
   // "plátano frito 100g" -> buscar "plátano frito", con 100 g ya puestos.
   const interpretado = interpretarBusqueda(q)
@@ -218,6 +250,7 @@ function Buscador({ onAgregar, onManual, recientes, enLaComida, nombreComida }: 
     onAgregar(a, cantidad, unidad)
     setAviso(`✓ ${a.nombre} agregado ${nombreComida}`)
     setAbierto(null)
+    setEscaneo(null)
     setQ('')
   }
   const abrir = (a: AlimentoBuscado) => {
@@ -229,8 +262,35 @@ function Buscador({ onAgregar, onManual, recientes, enLaComida, nombreComida }: 
   return (
     <section className="tarjeta space-y-2">
       <label className="etiqueta" htmlFor="buscar">Buscar alimento</label>
-      <input id="buscar" type="search" className="campo" placeholder="Ej.: arroz, 2 panes, plátano frito 100 g" value={q} autoComplete="off"
-        onChange={(e) => { setQ(e.target.value); setAviso(''); setAbierto(null) }} />
+      <div className="flex gap-2">
+        <input id="buscar" type="search" className="campo min-w-0 flex-1" placeholder="Ej.: arroz, 2 panes, plátano frito 100 g" value={q} autoComplete="off"
+          onChange={(e) => { setQ(e.target.value); setAviso(''); setAbierto(null); setEscaneo(null) }} />
+        {hayDictado && (
+          <button type="button" onClick={dictar} disabled={escuchando} aria-label="Dictar por voz" title="Dictar por voz"
+            className={`grid w-11 shrink-0 place-items-center rounded-xl border ${escuchando ? 'animate-pulse border-acento bg-acento text-white' : 'border-borde bg-superficie text-texto'}`}>
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0014 0M12 18v3" />
+            </svg>
+          </button>
+        )}
+        <button type="button" onClick={() => setEscaneando(true)} aria-label="Escanear código de barras" title="Escanear código de barras"
+          className="grid w-11 shrink-0 place-items-center rounded-xl border border-borde bg-superficie text-texto">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8" />
+          </svg>
+        </button>
+      </div>
+      {escuchando && <p className="text-sm text-acento">🎤 Te escucho… di por ejemplo “dos panes” o “arroz cocido 150 gramos”.</p>}
+      {escaneando && <Escaner onDetectado={alDetectar} onCerrar={() => setEscaneando(false)} />}
+      {escaneo && (
+        <ResultadoEscaneo escaneo={escaneo} abierto={abierto} setAbierto={setAbierto} nombreComida={nombreComida}
+          onAgregar={confirmar} onCerrar={() => { setEscaneo(null); setAbierto(null) }}
+          onGuardado={(a) => {
+            setEscaneo({ tipo: 'mio', alimento: a })
+            const ini = cantidadInicial({ cantidad: null, unidad: null }, a.porciones)
+            setAbierto({ id: a.id, cantidad: String(ini.cantidad), unidad: ini.unidad })
+          }} />
+      )}
       {aviso && <p role="status" className="rounded-lg bg-acento-suave px-3 py-2 text-sm text-acento">{aviso}</p>}
       {(interpretado.cantidad !== null || interpretado.unidad) && texto.length >= 2 && (
         <p className="text-xs text-suave">
@@ -281,6 +341,114 @@ function Buscador({ onAgregar, onManual, recientes, enLaComida, nombreComida }: 
         </ul>
       )}
     </section>
+  )
+}
+
+type Abierto = { id: string; cantidad: string; unidad: string } | null
+
+/** Lo que muestra el buscador después de escanear un código. */
+function ResultadoEscaneo({ escaneo, abierto, setAbierto, nombreComida, onAgregar, onGuardado, onCerrar }: {
+  escaneo: ResultadoCodigo | { tipo: 'consultando'; codigo: string }
+  abierto: Abierto
+  setAbierto: (v: Abierto) => void
+  nombreComida: string
+  onAgregar: (a: AlimentoBuscado, cantidad: number, unidad: string) => void
+  onGuardado: (a: AlimentoBuscado) => void
+  onCerrar: () => void
+}) {
+  const cerrar = <button type="button" onClick={onCerrar} className="text-xs text-suave underline">Cerrar</button>
+  if (escaneo.tipo === 'consultando') return <p className="rounded-xl bg-fondo p-3 text-sm text-suave">Buscando el producto {escaneo.codigo}…</p>
+  if (escaneo.tipo === 'error') return <p role="alert" className="rounded-xl bg-fondo p-3 text-sm text-peligro">{escaneo.mensaje} {cerrar}</p>
+  if (escaneo.tipo === 'mio') {
+    const a = escaneo.alimento
+    return (
+      <div className="rounded-xl border border-acento bg-fondo">
+        <div className="flex items-start justify-between gap-2 px-3 pt-3">
+          <div>
+            <p className="text-sm font-medium">{a.nombre}{a.marca && <span className="text-suave"> · {a.marca}</span>}</p>
+            <p className="text-xs text-suave">{fmt(a.calorias)} kcal · P {fmt(a.proteina_g, 1)} · C {fmt(a.carbohidratos_g, 1)} · G {fmt(a.grasa_g, 1)} por 100 g</p>
+          </div>
+          {cerrar}
+        </div>
+        {abierto?.id === a.id && <div className="px-2 pt-2"><AjusteCantidad alimento={a} valor={abierto} onCambio={setAbierto}
+          onAgregar={(c, u) => onAgregar(a, c, u)} nombreComida={nombreComida} /></div>}
+      </div>
+    )
+  }
+  const producto: ProductoEtiqueta = escaneo.tipo === 'nuevo' ? escaneo.producto : {
+    codigo: escaneo.codigo, nombre: '', marca: null, calorias: null, proteina_g: null, carbohidratos_g: null,
+    grasa_g: null, fibra_g: null, porcionGramos: null, imagen: null,
+  }
+  return <FichaProducto key={producto.codigo} producto={producto} encontrado={escaneo.tipo === 'nuevo'} onGuardado={onGuardado} onCerrar={onCerrar} />
+}
+
+/** Revisar o completar los datos de la etiqueta antes de guardar el producto. */
+function FichaProducto({ producto, encontrado, onGuardado, onCerrar }: {
+  producto: ProductoEtiqueta
+  encontrado: boolean
+  onGuardado: (a: AlimentoBuscado) => void
+  onCerrar: () => void
+}) {
+  const v = (n: number | null) => (n === null ? '' : String(n))
+  const [f, setF] = useState({
+    nombre: producto.nombre, marca: producto.marca ?? '', calorias: v(producto.calorias), proteina_g: v(producto.proteina_g),
+    carbohidratos_g: v(producto.carbohidratos_g), grasa_g: v(producto.grasa_g), fibra_g: v(producto.fibra_g ?? 0),
+    porcionGramos: v(producto.porcionGramos),
+  })
+  const [error, setError] = useState('')
+  const [guardando, iniciar] = useTransition()
+  const faltan = !f.nombre.trim() || f.calorias === '' || f.proteina_g === '' || f.carbohidratos_g === '' || f.grasa_g === ''
+  const campo = (k: keyof typeof f, etiqueta: string, numero = true) => (
+    <label className="block">
+      <span className="text-xs text-suave">{etiqueta}</span>
+      <input className={`campo py-2 ${numero && f[k] === '' ? 'border-peligro' : ''}`} value={f[k]}
+        {...(numero ? { type: 'number', inputMode: 'decimal' as const, step: 'any', min: '0' } : {})}
+        onChange={(e) => setF({ ...f, [k]: e.target.value })} />
+    </label>
+  )
+  const guardar = () => iniciar(async () => {
+    setError('')
+    const r = await guardarProducto({
+      codigo: producto.codigo, nombre: f.nombre, marca: f.marca || null, calorias: f.calorias, proteina_g: f.proteina_g,
+      carbohidratos_g: f.carbohidratos_g, grasa_g: f.grasa_g, fibra_g: f.fibra_g || 0, porcionGramos: f.porcionGramos || null,
+    })
+    if (r.error || !r.alimento) setError(r.error ?? 'No se pudo guardar.')
+    else onGuardado(r.alimento)
+  })
+
+  return (
+    <div className="space-y-2 rounded-xl border border-acento bg-fondo p-3">
+      <div className="flex items-start gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {producto.imagen && <img src={producto.imagen} alt="" className="h-16 w-16 shrink-0 rounded-lg bg-white object-contain" />}
+        <div className="flex-1 text-sm">
+          <p className="font-medium">{encontrado ? 'Producto encontrado' : 'Producto nuevo'} <span className="font-normal text-suave">· {producto.codigo}</span></p>
+          <p className="text-xs text-suave">
+            {encontrado
+              ? 'Datos de Open Food Facts. Revísalos con la etiqueta antes de guardar.'
+              : 'No está en Open Food Facts. Copia los datos de la tabla nutricional (por 100 g).'}
+          </p>
+        </div>
+        <button type="button" onClick={onCerrar} className="text-xs text-suave underline">Cerrar</button>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="col-span-2">{campo('nombre', 'Nombre', false)}</div>
+        {campo('marca', 'Marca', false)}
+        {campo('porcionGramos', 'Porción (g) – opcional')}
+      </div>
+      <p className="pt-1 text-xs font-medium text-suave">Por cada 100 g (o 100 ml):</p>
+      <div className="grid grid-cols-5 gap-1.5">
+        {campo('calorias', 'kcal')}
+        {campo('proteina_g', 'Prot.')}
+        {campo('carbohidratos_g', 'Carb.')}
+        {campo('grasa_g', 'Grasa')}
+        {campo('fibra_g', 'Fibra')}
+      </div>
+      {error && <p role="alert" className="text-sm text-peligro">{error}</p>}
+      <button type="button" className="boton w-full py-2 text-sm" disabled={faltan || guardando} onClick={guardar}>
+        {guardando ? 'Guardando…' : faltan ? 'Completa los datos en rojo' : 'Guardar producto'}
+      </button>
+    </div>
   )
 }
 

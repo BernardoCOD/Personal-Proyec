@@ -9,7 +9,7 @@ Este proyecto es independiente del **Centro de Mando** que está en la raíz del
 | 1. Base de datos (Supabase) | ✅ Esquema listo: `supabase/migrations/` |
 | 2. App web instalable | ✅ Lista: `app/` |
 | 3. Base de alimentos (CENAN + USDA) | ✅ Lista: `datos/` y la migración de búsqueda |
-| 4. Conector MCP para Claude | Pendiente |
+| 4. Conector MCP para Claude | ✅ Listo: `app/src/app/api/mcp` |
 | 5. Objetivos y recomendaciones | Pendiente |
 | 6. Hacerla pública | Pendiente |
 
@@ -139,8 +139,25 @@ Los detalles y cómo regenerar los datos están en [`datos/README.md`](datos/REA
 
 > **Para la Fase 6 (hacerla pública):** los datos de CENAN son solo para uso **no comercial**. Si cobras por la app, hay que pedir permiso al INS o usar solo USDA.
 
-## Próximo paso: Fase 4
+## Fase 4 – Conector de Claude (MCP)
 
-Prompt sugerido para Claude Code:
+Con el conector, le dices o le mandas una foto a Claude ("almorcé arroz con pollo y una gaseosa") y él lo registra en tu app con los valores del catálogo.
 
-> Vamos con la Fase 4 del plan: el conector MCP para Claude con OAuth, que use la función `buscar_alimentos` y las tablas de Supabase para registrar comidas, actividad y peso, y mostrar el resumen del día.
+- **Servidor MCP:** `https://personal-proyec.vercel.app/api/mcp`, dentro de la misma app de Next.js (Streamable HTTP).
+- **Inicio de sesión:** OAuth 2.1 de **Supabase Auth**, con registro automático de clientes. Claude se registra solo, te envía a `/oauth/consent` para que le des permiso y Supabase le entrega un token. Con ese token, las reglas de seguridad (RLS) limitan todo a tus datos.
+- **Herramientas:** `buscar_alimento`, `registrar_comida`, `resumen_dia`, `editar_registro`, `eliminar_registro`, `registrar_actividad`, `actualizar_peso`, `ver_objetivo` y `cambiar_objetivo`. La app y Claude comparten la misma lógica de registro (`src/lib/servicio.ts`).
+
+### Conectarlo en Claude (una sola vez)
+
+1. En **claude.ai** (o en la app de Claude) ve a **Configuración → Conectores → Agregar conector personalizado**.
+2. Nombre: `Nutri`. URL: `https://personal-proyec.vercel.app/api/mcp`. Pulsa **Agregar**.
+3. Pulsa **Conectar**. Se abrirá tu app: inicia sesión y pulsa **Permitir**.
+4. (Recomendado) Crea un **Proyecto** en Claude llamado "Mi alimentación" con esta instrucción: *"Usa el conector Nutri para registrar lo que como. Si una cantidad es ambigua, pregúntame. Después de cada registro muéstrame el resumen del día."*
+
+Desde el celular, en la app de Claude puedes usar el **modo de voz** o mandar una **foto** de tu plato o de una etiqueta.
+
+**Entregable de la Fase 4:** le digo a Claude lo que comí y aparece en la app. ✅
+
+## Próximo paso: Fase 5
+
+> Vamos con la Fase 5 del plan: etapas con fecha que cambian solas, ajuste semanal según la evolución del peso, recomendaciones de comidas según lo que falta del día y sugerencias básicas de entrenamiento.

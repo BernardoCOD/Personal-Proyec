@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { z } from 'zod'
 import { clienteServidor } from '@/lib/supabase/servidor'
+import { rutaSegura } from '@/lib/volver'
 
 export type EstadoLogin = { error?: string; mensaje?: string; email?: string }
 
@@ -25,7 +26,7 @@ export async function iniciarSesion(_: EstadoLogin, form: FormData): Promise<Est
       : 'Correo o contraseña incorrectos.'
     return { error: msg, email }
   }
-  redirect('/')
+  redirect(rutaSegura(form.get('volver')) ?? '/')
 }
 
 export async function crearCuenta(_: EstadoLogin, form: FormData): Promise<EstadoLogin> {
