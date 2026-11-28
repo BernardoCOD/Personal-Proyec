@@ -1,4 +1,4 @@
-import type { EstadoDia } from '@/lib/racha'
+import { TEXTO_REGLAS, type EstadoDia } from '@/lib/racha'
 
 /** Llama de racha: amarilla = registrando, verde = cumpliendo metas. Gris si la racha está en 0. */
 export function Llama({ tipo, apagada = false, className = 'h-6 w-6' }: { tipo: 'registro' | 'cumplimiento'; apagada?: boolean; className?: string }) {
@@ -16,12 +16,12 @@ export function ChipsRacha({ registro, cumplimiento }: { registro: number; cumpl
   return (
     <div className="flex justify-center gap-2">
       <span className="flex items-center gap-1 rounded-full border border-borde bg-superficie px-2.5 py-1 text-xs"
-        title="Días seguidos registrando al menos 2 comidas">
+        title={`Días seguidos registrando ${TEXTO_REGLAS.registrado}`}>
         <Llama tipo="registro" apagada={registro === 0} className="h-4 w-4" />
         <b className="tabular-nums">{registro}</b> <span className="text-suave">{registro === 1 ? 'día registrando' : 'días registrando'}</span>
       </span>
       <span className="flex items-center gap-1 rounded-full border border-borde bg-superficie px-2.5 py-1 text-xs"
-        title="Días seguidos cumpliendo calorías (±10 %) y proteína (≥ 90 %)">
+        title={`Días seguidos cumpliendo: ${TEXTO_REGLAS.cumplido}`}>
         <Llama tipo="cumplimiento" apagada={cumplimiento === 0} className="h-4 w-4" />
         <b className="tabular-nums">{cumplimiento}</b> <span className="text-suave">{cumplimiento === 1 ? 'día cumpliendo' : 'días cumpliendo'}</span>
       </span>

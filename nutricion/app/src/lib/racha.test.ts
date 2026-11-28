@@ -1,19 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { calcularRacha, estadoDia, resumirSemana, ultimasSemanas, type DiaResumen, type EstadoDia } from './racha'
 
-const dia = (fecha: string, secciones: number, calorias: number, proteina_g: number): DiaResumen => ({
-  fecha, secciones, calorias, proteina_g, carbohidratos_g: 0, grasa_g: 0, meta_calorias: 2000, meta_proteina_g: 150,
+// Metas: 2000 kcal, 150 g proteína, 200 g carbohidratos, 67 g grasa.
+const dia = (fecha: string, secciones: number, calorias: number, proteina_g: number, carbohidratos_g = 200, grasa_g = 67): DiaResumen => ({
+  fecha, secciones, calorias, proteina_g, carbohidratos_g, grasa_g,
+  meta_calorias: 2000, meta_proteina_g: 150, meta_carbohidratos_g: 200, meta_grasas_g: 67,
 })
 
 describe('estadoDia', () => {
-  it('vacío con menos de 2 comidas', () => {
+  it('vacío con menos de 3 comidas', () => {
     expect(estadoDia(undefined)).toBe('vacio')
-    expect(estadoDia(dia('2026-11-27', 1, 2000, 150))).toBe('vacio')
+    expect(estadoDia(dia('2026-11-27', 2, 2000, 150))).toBe('vacio')
   })
-  it('cumplido: kcal ±10 % y proteína ≥ 90 %', () => {
+  it('cumplido: kcal ±10 %, proteína ≥ 90 %, carbohidratos y grasas ±15 %', () => {
     expect(estadoDia(dia('2026-11-27', 3, 2000, 150))).toBe('cumplido')
-    expect(estadoDia(dia('2026-11-27', 2, 1800, 135))).toBe('cumplido')
-    expect(estadoDia(dia('2026-11-27', 2, 2200, 200))).toBe('cumplido')
+    expect(estadoDia(dia('2026-11-27', 4, 1800, 135, 170, 57))).toBe('cumplido')
+    expect(estadoDia(dia('2026-11-27', 3, 2200, 200, 230, 77))).toBe('cumplido')
+  })
+  it('registrado si carbohidratos o grasas se salen de ±15 %', () => {
+    expect(estadoDia(dia('2026-11-27', 3, 2000, 150, 160, 67))).toBe('registrado')
+    expect(estadoDia(dia('2026-11-27', 3, 2000, 150, 200, 80))).toBe('registrado')
   })
   it('registrado si se pasa, se queda corto o falta proteína', () => {
     expect(estadoDia(dia('2026-11-27', 3, 2300, 150))).toBe('registrado')
@@ -46,8 +52,8 @@ describe('calcularRacha', () => {
 describe('semanas', () => {
   const porFecha = new Map([
     ['2026-11-23', dia('2026-11-23', 3, 2000, 150)], // lunes, cumplido
-    ['2026-11-24', dia('2026-11-24', 2, 2400, 150)], // registrado (120 %)
-    ['2026-11-26', dia('2026-11-26', 1, 900, 40)],   // vacío (1 comida)
+    ['2026-11-24', dia('2026-11-24', 3, 2400, 150)], // registrado (120 %)
+    ['2026-11-26', dia('2026-11-26', 2, 900, 40)],   // vacío (2 comidas)
   ])
   it('resume la semana en curso hasta hoy', () => {
     const s = resumirSemana(porFecha, '2026-11-23', '2026-11-26')

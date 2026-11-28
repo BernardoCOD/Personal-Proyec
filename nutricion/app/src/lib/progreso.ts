@@ -22,6 +22,8 @@ export async function cargarProgreso(supabase: SupabaseClient, hoy: string, sema
       grasa_g: Number(d.grasa_g),
       meta_calorias: d.meta_calorias == null ? null : Number(d.meta_calorias),
       meta_proteina_g: d.meta_proteina_g == null ? null : Number(d.meta_proteina_g),
+      meta_carbohidratos_g: d.meta_carbohidratos_g == null ? null : Number(d.meta_carbohidratos_g),
+      meta_grasas_g: d.meta_grasas_g == null ? null : Number(d.meta_grasas_g),
     })
   }
   const estados = new Map<string, EstadoDia>([...porFecha].map(([f, d]) => [f, estadoDia(d)]))

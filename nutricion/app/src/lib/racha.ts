@@ -1,19 +1,30 @@
 // Rachas y cumplimiento. Funciones puras con pruebas.
 //
-//  Día registrado (🟡): anotaste al menos 2 comidas distintas ese día.
-//  Día cumplido  (🟢): registrado, calorías dentro de ±10 % de la meta
-//                      y proteína ≥ 90 % de la meta.
+//  Día registrado (🟡): anotaste al menos 3 comidas distintas ese día.
+//  Día cumplido  (🟢): registrado, calorías dentro de ±10 % de la meta,
+//                      proteína ≥ 90 %, y carbohidratos y grasas dentro
+//                      de ±15 % de sus metas.
 //  Racha: días seguidos que cumplen la regla. Hoy no la rompe mientras
 //  el día sigue en curso: si hoy aún no cumple, se cuenta desde ayer.
 
 import { lunesDeLaSemana, sumarDias } from './fechas'
 
 export const REGLAS = {
-  seccionesMinimas: 2,
+  seccionesMinimas: 3,
   caloriasMin: 0.9,
   caloriasMax: 1.1,
   proteinaMin: 0.9,
+  carbohidratosMin: 0.85,
+  carbohidratosMax: 1.15,
+  grasasMin: 0.85,
+  grasasMax: 1.15,
 } as const
+
+/** La regla en palabras, para mostrarla en la app y en Claude. */
+export const TEXTO_REGLAS = {
+  registrado: `al menos ${REGLAS.seccionesMinimas} comidas`,
+  cumplido: 'calorías ±10 %, proteína desde 90 %, carbohidratos y grasas ±15 % de tus metas',
+}
 
 export type DiaResumen = {
   fecha: string
@@ -24,16 +35,25 @@ export type DiaResumen = {
   grasa_g: number
   meta_calorias: number | null
   meta_proteina_g: number | null
+  meta_carbohidratos_g: number | null
+  meta_grasas_g: number | null
 }
 
 export type EstadoDia = 'vacio' | 'registrado' | 'cumplido'
 
 export function estadoDia(d: DiaResumen | undefined): EstadoDia {
   if (!d || d.secciones < REGLAS.seccionesMinimas) return 'vacio'
-  if (!d.meta_calorias || !d.meta_proteina_g) return 'registrado'
+  if (!d.meta_calorias || !d.meta_proteina_g || !d.meta_carbohidratos_g || !d.meta_grasas_g) return 'registrado'
   const kcal = d.calorias / d.meta_calorias
   const prot = d.proteina_g / d.meta_proteina_g
-  return kcal >= REGLAS.caloriasMin && kcal <= REGLAS.caloriasMax && prot >= REGLAS.proteinaMin ? 'cumplido' : 'registrado'
+  const carb = d.carbohidratos_g / d.meta_carbohidratos_g
+  const gras = d.grasa_g / d.meta_grasas_g
+  const cumple =
+    kcal >= REGLAS.caloriasMin && kcal <= REGLAS.caloriasMax &&
+    prot >= REGLAS.proteinaMin &&
+    carb >= REGLAS.carbohidratosMin && carb <= REGLAS.carbohidratosMax &&
+    gras >= REGLAS.grasasMin && gras <= REGLAS.grasasMax
+  return cumple ? 'cumplido' : 'registrado'
 }
 
 const cumple = (e: EstadoDia, nivel: 'registro' | 'cumplimiento') =>

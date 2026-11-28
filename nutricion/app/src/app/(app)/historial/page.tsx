@@ -7,7 +7,7 @@ import { fmt, Vacio } from '@/componentes/ui'
 import { datosRegistrados } from '@/lib/datos'
 import { fechaCorta, sumarDias } from '@/lib/fechas'
 import { cargarProgreso } from '@/lib/progreso'
-import { REGLAS } from '@/lib/racha'
+import { REGLAS, TEXTO_REGLAS } from '@/lib/racha'
 
 export const metadata: Metadata = { title: 'Progreso' }
 
@@ -45,7 +45,7 @@ async function Contenido() {
         <TarjetaRacha tipo="registro" titulo="Registrando" racha={registro}
           ayuda={registro.hoyCuenta ? 'Hoy ya suma' : `Registra ${REGLAS.seccionesMinimas} comidas hoy para sumar`} />
         <TarjetaRacha tipo="cumplimiento" titulo="Cumpliendo metas" racha={cumplimiento}
-          ayuda={cumplimiento.hoyCuenta ? 'Hoy ya suma' : 'Kcal ±10 % y proteína ≥ 90 %'} />
+          ayuda={cumplimiento.hoyCuenta ? 'Hoy ya suma' : 'Kcal y macros dentro de tus metas'} />
       </section>
 
       {/* Esta semana vs la anterior */}
@@ -120,7 +120,7 @@ async function Contenido() {
           </tbody>
         </table>
         <p className="mt-2 text-xs text-suave">
-          Registrado: al menos {REGLAS.seccionesMinimas} comidas. Cumplido: calorías entre 90 y 110 % de la meta y proteína desde 90 %.
+          Registrado: {TEXTO_REGLAS.registrado}. Cumplido: {TEXTO_REGLAS.cumplido}.
         </p>
       </section>
 

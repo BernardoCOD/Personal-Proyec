@@ -6,7 +6,7 @@ import { calcularPlan, caloriasActividad, OBJETIVOS } from './calculos'
 import { esFechaValida, fechaEnZona, rangoDelDia, sumarDias, ZONA_POR_DEFECTO } from './fechas'
 import { configSupabase } from './supabase/config'
 import { cargarProgreso } from './progreso'
-import { REGLAS } from './racha'
+import { TEXTO_REGLAS } from './racha'
 import {
   borrarItem, buscar, cambiarCantidad, ErrorUsuario, guardarComida, itemCatalogo, itemManual, TIPOS_COMIDA, type Ctx,
 } from './servicio'
@@ -133,7 +133,7 @@ async function resumenDia(ctx: Ctx & { hoy: string }, fecha: string) {
       dias_registrando: progreso.registro.actual,
       dias_cumpliendo_metas: progreso.cumplimiento.actual,
       hoy_ya_suma: progreso.registro.hoyCuenta,
-      regla: `Registrado: ${REGLAS.seccionesMinimas}+ comidas. Cumplido: kcal ±10 % de la meta y proteína ≥ 90 %.`,
+      regla: `Registrado: ${TEXTO_REGLAS.registrado}. Cumplido: ${TEXTO_REGLAS.cumplido}.`,
     } : null,
   }
 }
