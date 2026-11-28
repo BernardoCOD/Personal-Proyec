@@ -1,37 +1,44 @@
 @import "tailwindcss";
 
 :root {
-  --fondo: #f6f7f4;
+  /* Paleta "Atardecer": naranja coral (energía, acción) + violeta (logro).
+     Colores de datos validados para daltonismo en claro y oscuro. */
+  --fondo: #faf7f4;
   --superficie: #ffffff;
-  --texto: #1a1d1a;
-  --suave: #5f665f;
-  --borde: #e3e6e0;
-  --acento: #2f8f4e;
-  --acento-suave: #e3f2e7;
-  --proteina: #d0573b;
-  --carbos: #d89a1e;
-  --grasas: #3c78c3;
-  --peligro: #c23b3b;
-  /* Rachas (validados para daltonismo: ΔE 10.5 claro / 10 oscuro) */
-  --racha-registro: #d89a1e;
-  --racha-cumplido: #2f8f4e;
+  --texto: #1d1830;
+  --suave: #6b6580;
+  --borde: #ebe5e0;
+  --acento: #d94c18;
+  --sobre-acento: #ffffff;
+  --acento-suave: #fdebe3;
+  --secundario: #6d5bd0;
+  --secundario-suave: #eeebfb;
+  --proteina: #d6336c;
+  --carbos: #d99a14;
+  --grasas: #2f86c9;
+  --peligro: #c0262d;
+  --racha-registro: #d99a14;
+  --racha-cumplido: #6d5bd0;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --fondo: #111411;
-    --superficie: #1a1e1a;
-    --texto: #e9ece8;
-    --suave: #9aa39a;
-    --borde: #2c322c;
-    --acento: #4cbf70;
-    --acento-suave: #1f3324;
-    --proteina: #ec7a5f;
-    --carbos: #e8b443;
-    --grasas: #6aa2e8;
-    --peligro: #ef6b6b;
-    --racha-registro: #d18c1f;
-    --racha-cumplido: #279a7a;
+    --fondo: #110f19;
+    --superficie: #1c1a26;
+    --texto: #efedf6;
+    --suave: #a39fb5;
+    --borde: #2e2b3b;
+    --acento: #ff7a45;
+    --sobre-acento: #1d0f08;
+    --acento-suave: #3a2219;
+    --secundario: #8b7cf0;
+    --secundario-suave: #262143;
+    --proteina: #f0628f;
+    --carbos: #c98c1c;
+    --grasas: #4ea3e6;
+    --peligro: #ff6b6b;
+    --racha-registro: #c98c1c;
+    --racha-cumplido: #8b7cf0;
   }
 }
 
@@ -43,6 +50,9 @@
   --color-borde: var(--borde);
   --color-acento: var(--acento);
   --color-acento-suave: var(--acento-suave);
+  --color-sobre-acento: var(--sobre-acento);
+  --color-secundario: var(--secundario);
+  --color-secundario-suave: var(--secundario-suave);
   --color-proteina: var(--proteina);
   --color-carbos: var(--carbos);
   --color-grasas: var(--grasas);
@@ -70,7 +80,7 @@ body {
     @apply mb-1 block text-sm font-medium text-suave;
   }
   .boton {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-acento px-4 py-2.5 font-semibold text-white transition active:scale-[0.98] disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-acento px-4 py-2.5 font-semibold text-sobre-acento transition active:scale-[0.98] disabled:opacity-50;
   }
   .boton-secundario {
     @apply inline-flex items-center justify-center gap-2 rounded-xl border border-borde bg-superficie px-4 py-2.5 font-medium text-texto transition active:scale-[0.98] disabled:opacity-50;

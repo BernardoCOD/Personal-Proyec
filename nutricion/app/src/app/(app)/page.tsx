@@ -2,8 +2,9 @@ import Link from 'next/link'
 import { Suspense } from 'react'
 import { AnilloCalorias, BarraMacro, fmt, NOMBRE_OBJETIVO, Vacio } from '@/componentes/ui'
 import { datosRegistrados } from '@/lib/datos'
-import { esFechaValida, fechaLarga, horaEnZona, rangoDelDia, sumarDias } from '@/lib/fechas'
-import { ChipsRacha } from '@/componentes/racha'
+import { esFechaValida, fechaLarga, horaEnZona, rangoDelDia } from '@/lib/fechas'
+import { Llama } from '@/componentes/racha'
+import { SemanaTira } from '@/componentes/semana'
 import { cargarProgreso } from '@/lib/progreso'
 import { REGLAS } from '@/lib/racha'
 import { eliminarActividad, eliminarItem } from './acciones'
@@ -81,29 +82,34 @@ async function Panel({ searchParams }: { searchParams: PageProps<'/'>['searchPar
   return (
     <div className="space-y-4">
       <header className="flex items-center justify-between gap-2">
-        <Link href={`/?fecha=${sumarDias(fecha, -1)}`} className="boton-secundario px-3" aria-label="Día anterior">‹</Link>
-        <div className="text-center">
-          <h1 className="text-lg font-bold first-letter:uppercase">{esHoy ? `Hoy, ${fechaLarga(fecha)}` : fechaLarga(fecha)}</h1>
-          <p className="text-xs text-suave">
-            {perfil.nombre ? `${perfil.nombre} · ` : ''}{NOMBRE_OBJETIVO[objetivo.tipo]}
-            {!esHoy && <> · <Link href="/" className="text-acento underline">volver a hoy</Link></>}
+        <div>
+          <h1 className="text-2xl font-bold">{esHoy ? 'Hoy' : <span className="first-letter:uppercase">{fechaLarga(fecha).split(' ')[0]}</span>}</h1>
+          <p className="text-xs text-suave first-letter:uppercase">
+            {esHoy ? fechaLarga(fecha) : fechaLarga(fecha).split(' ').slice(1).join(' ')} · {NOMBRE_OBJETIVO[objetivo.tipo]}
           </p>
         </div>
-        {fecha < hoy
-          ? <Link href={`/?fecha=${sumarDias(fecha, 1)}`} className="boton-secundario px-3" aria-label="Día siguiente">›</Link>
-          : <span className="w-[42px]" />}
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-0.5 text-sm font-bold tabular-nums" title={`${progreso.registro.actual} días seguidos registrando`}>
+            <Llama tipo="registro" apagada={progreso.registro.actual === 0} className="h-6 w-6" />{progreso.registro.actual}
+          </span>
+          <span className="flex items-center gap-0.5 text-sm font-bold tabular-nums" title={`${progreso.cumplimiento.actual} días seguidos cumpliendo tus metas`}>
+            <Llama tipo="cumplimiento" apagada={progreso.cumplimiento.actual === 0} className="h-6 w-6" />{progreso.cumplimiento.actual}
+          </span>
+          <Link href="/perfil" aria-label="Mi perfil"
+            className="ml-1 grid h-10 w-10 place-items-center rounded-full bg-secundario text-base font-bold text-white">
+            {(perfil.nombre ?? '?').trim().charAt(0).toUpperCase()}
+          </Link>
+        </div>
       </header>
 
-      {esHoy && (
-        <div className="space-y-1.5">
-          <ChipsRacha registro={progreso.registro.actual} cumplimiento={progreso.cumplimiento.actual} />
-          {!progreso.registro.hoyCuenta && (
-            <p className="text-center text-xs text-suave">
-              Registra al menos {REGLAS.seccionesMinimas} comidas hoy para {progreso.registro.actual > 0 ? 'mantener tu racha' : 'empezar una racha'} 🔥
-            </p>
-          )}
-        </div>
+      <SemanaTira fecha={fecha} hoy={hoy} estados={progreso.estados} />
+
+      {esHoy && !progreso.registro.hoyCuenta && (
+        <p className="rounded-xl bg-acento-suave px-3 py-2 text-center text-sm text-acento">
+          Registra al menos {REGLAS.seccionesMinimas} comidas hoy para {progreso.registro.actual > 0 ? 'mantener tu racha' : 'empezar una racha'} 🔥
+        </p>
       )}
+      {!esHoy && <Link href="/" className="block text-center text-sm font-medium text-acento">Volver a hoy</Link>}
 
       <section className="tarjeta">
         <div className="flex items-center gap-4">
@@ -149,7 +155,7 @@ async function Panel({ searchParams }: { searchParams: PageProps<'/'>['searchPar
                 </p>
               </div>
               <Link href={agregar} aria-label={`Agregar a ${s.nombre}`}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-acento text-2xl leading-none text-white active:scale-95">+</Link>
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-acento text-2xl leading-none text-sobre-acento active:scale-95">+</Link>
             </div>
 
             {items.length === 0 ? (
@@ -188,7 +194,7 @@ async function Panel({ searchParams }: { searchParams: PageProps<'/'>['searchPar
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Actividad física</h2>
+          <h2 className="font-semibold">🏃 Ejercicio</h2>
           <Link href={`/registrar?tipo=actividad&fecha=${fecha}`} className="text-sm font-medium text-acento">+ Agregar</Link>
         </div>
         {actividades.length === 0 && <Vacio>Sin actividad registrada.</Vacio>}

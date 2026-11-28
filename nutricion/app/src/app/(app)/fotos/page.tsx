@@ -5,14 +5,15 @@ import { fechaLarga } from '@/lib/fechas'
 import { BUCKET_FOTOS, proximaFoto, type FotoInfo } from '@/lib/fotos'
 import { Galeria, type Foto } from './galeria'
 import { SubirFoto } from './subir'
+import { TabsProgreso } from '@/componentes/tabs-progreso'
 
 export const metadata: Metadata = { title: 'Fotos' }
 
 export default function PaginaFotos() {
   return (
     <>
-      <h1 className="text-xl font-bold">Fotos de progreso</h1>
-      <p className="mb-4 text-sm text-suave">Solo tú puedes verlas. Tómalas con la misma luz, ropa y pose para comparar mejor.</p>
+      <TabsProgreso actual="fotos" />
+      <p className="-mt-1 mb-4 text-sm text-suave">Solo tú puedes verlas. Tómalas con la misma luz, ropa y pose para comparar mejor.</p>
       <Suspense fallback={<p className="text-suave">Cargando…</p>}>
         <Contenido />
       </Suspense>

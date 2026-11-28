@@ -35,18 +35,11 @@ type Props = {
   recientes: AlimentoBuscado[]
 }
 
+/** Buscar alimentos (por defecto). Ejercicio y peso llegan desde Plan y Progreso. */
 export function Registrar(p: Props) {
-  const [pestana, setPestana] = useState<Pestana>(p.pestanaInicial)
+  const pestana: Pestana = p.pestanaInicial
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-1 rounded-xl border border-borde bg-superficie p-1 text-sm" role="tablist">
-        {(['comida', 'actividad', 'peso'] as const).map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={pestana === t} onClick={() => setPestana(t)}
-            className={`rounded-lg py-2 font-medium ${pestana === t ? 'bg-acento text-white' : 'text-suave'}`}>
-            {t === 'comida' ? 'Comida' : t === 'actividad' ? 'Actividad' : 'Peso'}
-          </button>
-        ))}
-      </div>
       {pestana === 'comida' && <FormComida {...p} />}
       {pestana === 'actividad' && <FormActividad {...p} />}
       {pestana === 'peso' && <FormPeso {...p} />}
@@ -151,10 +144,6 @@ function FormComida({ fechaHora: inicial, hoy, zona, recientes, tipoComida }: Pr
 
       <Buscador onAgregar={agregar} onManual={agregarManual} recientes={recientes} enLaComida={enLaComida}
         nombreComida={NOMBRES_COMIDA[tipoEfectivo] ?? tipoEfectivo} />
-
-      <button type="button" className="boton-secundario w-full text-sm" onClick={() => agregarManual()}>
-        + Alimento que no está en la lista
-      </button>
 
       {items.length > 0 && (
         <section className="tarjeta space-y-3">
@@ -262,23 +251,19 @@ function Buscador({ onAgregar, onManual, recientes, enLaComida, nombreComida }: 
   return (
     <section className="tarjeta space-y-2">
       <label className="etiqueta" htmlFor="buscar">Buscar alimento</label>
-      <div className="flex gap-2">
-        <input id="buscar" type="search" className="campo min-w-0 flex-1" placeholder="Ej.: arroz, 2 panes, plátano frito 100 g" value={q} autoComplete="off"
+      <div className="relative">
+        <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-suave" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+          <path d="M11 18a7 7 0 100-14 7 7 0 000 14zM21 21l-5-5" />
+        </svg>
+        <input id="buscar" type="search" className="campo pl-10" placeholder="Ej.: arroz, 2 panes, plátano frito 100 g" value={q} autoComplete="off"
           onChange={(e) => { setQ(e.target.value); setAviso(''); setAbierto(null); setEscaneo(null) }} />
+      </div>
+      <div className={`grid gap-2 ${hayDictado ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        <BotonAccion onClick={() => setEscaneando(true)} texto="Escanear" icono="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8" />
         {hayDictado && (
-          <button type="button" onClick={dictar} disabled={escuchando} aria-label="Dictar por voz" title="Dictar por voz"
-            className={`grid w-11 shrink-0 place-items-center rounded-xl border ${escuchando ? 'animate-pulse border-acento bg-acento text-white' : 'border-borde bg-superficie text-texto'}`}>
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-              <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0014 0M12 18v3" />
-            </svg>
-          </button>
+          <BotonAccion onClick={dictar} activo={escuchando} texto={escuchando ? 'Escuchando' : 'Voz'} icono="M9 6a3 3 0 016 0v5a3 3 0 01-6 0zM5 11a7 7 0 0014 0M12 18v3" />
         )}
-        <button type="button" onClick={() => setEscaneando(true)} aria-label="Escanear código de barras" title="Escanear código de barras"
-          className="grid w-11 shrink-0 place-items-center rounded-xl border border-borde bg-superficie text-texto">
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-            <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8" />
-          </svg>
-        </button>
+        <BotonAccion onClick={() => { onManual(texto, interpretado.cantidad, interpretado.unidad); setQ('') }} texto="Crear" icono="M12 5v14M5 12h14" />
       </div>
       {escuchando && <p className="text-sm text-acento">🎤 Te escucho… di por ejemplo “dos panes” o “arroz cocido 150 gramos”.</p>}
       {escaneando && <Escaner onDetectado={alDetectar} onCerrar={() => setEscaneando(false)} />}
@@ -330,7 +315,7 @@ function Buscador({ onAgregar, onManual, recientes, enLaComida, nombreComida }: 
                   {!esAbierto && (
                     <button type="button" onClick={() => confirmar(a, ini.cantidad, ini.unidad)}
                       aria-label={`Agregar ${ini.cantidad} ${ini.unidad} de ${a.nombre}`} title={`Agregar ${ini.cantidad} ${ini.unidad}`}
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-acento text-xl leading-none text-white active:scale-95">+</button>
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-acento text-xl leading-none text-sobre-acento active:scale-95">+</button>
                   )}
                 </div>
                 {esAbierto && <AjusteCantidad alimento={a} valor={abierto} onCambio={setAbierto}
@@ -481,6 +466,18 @@ function AjusteCantidad({ alimento, valor, onCambio, onAgregar, nombreComida }: 
         + Agregar {nombreComida}
       </button>
     </div>
+  )
+}
+
+function BotonAccion({ onClick, texto, icono, activo = false }: { onClick: () => void; texto: string; icono: string; activo?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} disabled={activo}
+      className={`flex flex-col items-center gap-1 rounded-xl border py-2.5 text-xs font-medium transition active:scale-[0.97] ${activo ? 'animate-pulse border-acento bg-acento text-sobre-acento' : 'border-borde bg-fondo text-texto'}`}>
+      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d={icono} />
+      </svg>
+      {texto}
+    </button>
   )
 }
 

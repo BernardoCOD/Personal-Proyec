@@ -23,8 +23,8 @@ function paginaNavegador(req: Request) {
   const origen = new URL(req.url).origin
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Conector de Nutri para Claude</title>
-<style>:root{--f:#f6f7f4;--s:#fff;--t:#1a1d1a;--m:#5f665f;--a:#2f8f4e;--b:#e3e6e0}
-@media(prefers-color-scheme:dark){:root{--f:#111411;--s:#1a1e1a;--t:#e9ece8;--m:#9aa39a;--a:#4cbf70;--b:#2c322c}}
+<style>:root{--f:#faf7f4;--s:#fff;--t:#1d1830;--m:#6b6580;--a:#d94c18;--b:#ebe5e0}
+@media(prefers-color-scheme:dark){:root{--f:#110f19;--s:#1c1a26;--t:#efedf6;--m:#a39fb5;--a:#ff7a45;--b:#2e2b3b}}
 body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--f);color:var(--t);font-family:system-ui,sans-serif;padding:16px}
 main{max-width:420px;background:var(--s);border:1px solid var(--b);border-radius:16px;padding:20px}
 h1{font-size:1.2rem;margin:.5rem 0}p,li{color:var(--m);line-height:1.45}code{background:var(--f);padding:2px 6px;border-radius:6px;word-break:break-all;color:var(--t)}
